@@ -3,7 +3,10 @@
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import { Menu, Bell } from "lucide-react";
+import Image from "next/image";
 import { textPrimary, borderPrimary, sidebarbg } from "@/contexts/theme";
+import { useGetMyProfileQuery } from "@/store/api/authApi";
+import { getImageUrl } from "@/store/config/envConfig";
 
 interface MainHeaderProps {
   toggleSidebar: () => void;
@@ -11,8 +14,9 @@ interface MainHeaderProps {
 
 export default function MainHeader({ toggleSidebar }: MainHeaderProps) {
   const router = useRouter();
-  const { user } = useAuth();
-  
+  const { data: profileData } = useGetMyProfileQuery({});
+  const user = profileData?.data;
+
   // Dummy unread count
   const unreadCount = 3;
 
@@ -40,19 +44,31 @@ export default function MainHeader({ toggleSidebar }: MainHeaderProps) {
                 <span className="absolute top-2 right-2 inline-flex h-2 w-2 rounded-full bg-[#E53E3E]"></span>
               )}
             </button>
-            
+
             <div
               onClick={() => router.push("/admin/profile")}
-              className="flex items-center gap-2 cursor-default"
+              className="flex items-center gap-2 cursor-pointer"
             >
               {/* Avatar */}
-                <div className={`w-8 md:w-12 h-8 md:h-12 rounded-full bg-blue-200 flex items-center justify-center text-blue-800 font-bold text-lg`}>
-                    {user?.fullName?.charAt(0).toUpperCase() || 'U'}
-                </div>
-              
+              <div className={`w-8 md:w-12 h-8 md:h-12 rounded-full overflow-hidden flex items-center justify-center border border-gray-200`}>
+                {user?.photo ? (
+                  <Image
+                    src={getImageUrl(user.photo)}
+                    alt={user?.fullname || "User"}
+                    width={48}
+                    height={48}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-blue-200 flex items-center justify-center text-blue-800 font-bold text-lg">
+                    {user?.fullname?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <h3 className="hidden md:block text-[#0D0D0D] text-lg font-semibold">
-                  {user?.fullName || 'User'}
+                  {user?.fullname || 'User'}
                 </h3>
                 <p className="text-[#0D0D0D] text-md capitalize">
                   {user?.role || 'User'}

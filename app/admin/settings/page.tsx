@@ -28,7 +28,20 @@ export default function SettingsPage() {
               <ChevronRight className="text-gray-400 group-hover:text-blue-600 transition-colors w-5 h-5" />
             </Link>
           </li>
-          
+
+          {/* Change Password */}
+          <li>
+            <Link
+              href="/admin/change-password"
+              className="flex items-center justify-between px-6 py-5 hover:bg-gray-50 transition group"
+            >
+              <span className="text-gray-700 font-medium text-base group-hover:text-blue-600 transition-colors">
+                Change Password
+              </span>
+              <ChevronRight className="text-gray-400 group-hover:text-blue-600 transition-colors w-5 h-5" />
+            </Link>
+          </li>
+
           {/* Privacy Policy */}
           <li>
             <Link
@@ -39,7 +52,7 @@ export default function SettingsPage() {
               <ChevronRight className="text-gray-400 group-hover:text-blue-600 transition-colors w-5 h-5" />
             </Link>
           </li>
-          
+
           {/* Terms & Conditions */}
           <li>
             <Link
@@ -52,7 +65,7 @@ export default function SettingsPage() {
               <ChevronRight className="text-gray-400 group-hover:text-blue-600 transition-colors w-5 h-5" />
             </Link>
           </li>
-          
+
           {/* About Us */}
           <li>
             <Link
