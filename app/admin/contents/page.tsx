@@ -38,86 +38,86 @@ export default function ContentsPage() {
   useEffect(() => {
     if (!isAuthenticated) {
       router.push("/auth");
-    } else if (user?.role !== "admin") {
+    } else if (user && (user.role !== "admin" && user.role !== "superAdmin")) {
       router.push("/");
     }
   }, [isAuthenticated, user, router]);
 
-  if (!user || user.role !== "admin") return null;
+  if (!user || (user.role !== "admin" && user.role !== "superAdmin")) return null;
 
   return (
     <div className="min-h-screen bg-transparent space-y-5">
-      
+
       {/* Header */}
       <div className={`${buttonbg} rounded-xl p-4 px-6 shadow-sm flex items-center justify-between`}>
-          <div className="flex items-center gap-2">
-            <FileText className="w-6 h-6 text-white" />
-            <h1 className="text-2xl font-bold text-white">Content Management</h1>
-          </div>
-          <Button className="bg-white text-[#2E6F65] hover:bg-white/90 font-bold">
-              + Add New Content
-          </Button>
+        <div className="flex items-center gap-2">
+          <FileText className="w-6 h-6 text-white" />
+          <h1 className="text-2xl font-bold text-white">Content Management</h1>
+        </div>
+        <Button className="bg-white text-[#2E6F65] hover:bg-white/90 font-bold">
+          + Add New Content
+        </Button>
       </div>
 
       {/* Content Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-h-[500px] flex flex-col justify-between p-5">
-         <div className="overflow-x-auto">
-            <Table>
-                <TableHeader className="bg-white">
-                    <TableRow className="">
-                        <TableHead className={`font-semibold text-base py-5 ${textPrimary} pl-6`}>S.ID</TableHead>
-                        <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Title</TableHead>
-                        <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Category</TableHead>
-                        <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Author</TableHead>
-                        <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Date</TableHead>
-                        <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Status</TableHead>
-                        <TableHead className={`font-semibold text-base py-5 ${textPrimary} text-right pr-6`}>Action</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {contents.map((item, i) => (
-                        <TableRow key={i} className="hover:bg-gray-50 border-b border-gray-100 last:border-0">
-                            <TableCell className="font-medium text-gray-600 py-4 pl-6">{item.id}</TableCell>
-                            <TableCell className="text-gray-900 font-medium py-4">{item.title}</TableCell>
-                            <TableCell className="text-gray-600 py-4">{item.category}</TableCell>
-                            <TableCell className="text-gray-600 py-4">{item.author}</TableCell>
-                            <TableCell className="text-gray-600 py-4">{item.date}</TableCell>
-                            <TableCell className="py-4">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-white">
+              <TableRow className="">
+                <TableHead className={`font-semibold text-base py-5 ${textPrimary} pl-6`}>S.ID</TableHead>
+                <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Title</TableHead>
+                <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Category</TableHead>
+                <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Author</TableHead>
+                <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Date</TableHead>
+                <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Status</TableHead>
+                <TableHead className={`font-semibold text-base py-5 ${textPrimary} text-right pr-6`}>Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {contents.map((item, i) => (
+                <TableRow key={i} className="hover:bg-gray-50 border-b border-gray-100 last:border-0">
+                  <TableCell className="font-medium text-gray-600 py-4 pl-6">{item.id}</TableCell>
+                  <TableCell className="text-gray-900 font-medium py-4">{item.title}</TableCell>
+                  <TableCell className="text-gray-600 py-4">{item.category}</TableCell>
+                  <TableCell className="text-gray-600 py-4">{item.author}</TableCell>
+                  <TableCell className="text-gray-600 py-4">{item.date}</TableCell>
+                  <TableCell className="py-4">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
                                     ${item.status === 'Published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                    {item.status}
-                                </span>
-                            </TableCell>
-                            <TableCell className="py-4 pr-6">
-                                <div className="flex items-center justify-end gap-3">
-                                    <button className="text-gray-500 hover:text-gray-700 transition-colors">
-                                        <Eye className="w-5 h-5" />
-                                    </button>
-                                    <button className="text-gray-800 hover:text-black transition-colors">
-                                        <Edit className="w-5 h-5" />
-                                    </button>
-                                    <button className="text-red-500 hover:text-red-600 transition-colors">
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-         </div>
+                      {item.status}
+                    </span>
+                  </TableCell>
+                  <TableCell className="py-4 pr-6">
+                    <div className="flex items-center justify-end gap-3">
+                      <button className="text-gray-500 hover:text-gray-700 transition-colors">
+                        <Eye className="w-5 h-5" />
+                      </button>
+                      <button className="text-gray-800 hover:text-black transition-colors">
+                        <Edit className="w-5 h-5" />
+                      </button>
+                      <button className="text-red-500 hover:text-red-600 transition-colors">
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
 
-         {/* Pagination */}
-          <div className="p-4 border-t border-gray-100">
-            <Pagination>
-                <PaginationContent>
-                    <PaginationItem><PaginationPrevious href="#" className="text-gray-500 hover:text-[#2E6F65]" /></PaginationItem>
-                    <PaginationItem><PaginationLink href="#" isActive className="bg-[#2E6F65] text-white hover:bg-[#2E6F65]/90 hover:text-white border-0">1</PaginationLink></PaginationItem>
-                    <PaginationItem><PaginationLink href="#" className="text-gray-600 hover:text-[#2E6F65] hover:bg-gray-100 border-0">2</PaginationLink></PaginationItem>
-                    <PaginationItem><PaginationNext href="#" className="text-gray-500 hover:text-[#2E6F65]" /></PaginationItem>
-                </PaginationContent>
-            </Pagination>
-          </div>
+        {/* Pagination */}
+        <div className="p-4 border-t border-gray-100">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem><PaginationPrevious href="#" className="text-gray-500 hover:text-[#2E6F65]" /></PaginationItem>
+              <PaginationItem><PaginationLink href="#" isActive className="bg-[#2E6F65] text-white hover:bg-[#2E6F65]/90 hover:text-white border-0">1</PaginationLink></PaginationItem>
+              <PaginationItem><PaginationLink href="#" className="text-gray-600 hover:text-[#2E6F65] hover:bg-gray-100 border-0">2</PaginationLink></PaginationItem>
+              <PaginationItem><PaginationNext href="#" className="text-gray-500 hover:text-[#2E6F65]" /></PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
       </div>
 
     </div>

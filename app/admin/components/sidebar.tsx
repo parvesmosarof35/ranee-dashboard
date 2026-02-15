@@ -3,17 +3,17 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-import { 
-    LayoutDashboard, 
-    Users, 
-    ShieldCheck, 
-    Settings, 
-    LogOut, 
-    X,
-    DollarSign,
-    Store,
-    FileText,
-    BarChart, 
+import {
+  LayoutDashboard,
+  Users,
+  ShieldCheck,
+  Settings,
+  LogOut,
+  X,
+  DollarSign,
+  Store,
+  FileText,
+  BarChart,
 } from "lucide-react";
 import Image from "next/image";
 import {
@@ -39,20 +39,20 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
-  
+
   const isActive = (path: string) => pathname === path;
 
   const navItems = [
-    { name: "Dashboard",       path: "/admin/dashboard",       icon: LayoutDashboard },
-    { name: "Users",           path: "/admin/users",           icon: Users },
-    { name: "Earnings",        path: "/admin/earnings",        icon: DollarSign },
-    { name: "Vendors",         path: "/admin/vendors",         icon: Store },
-    { name: "Category",        path: "/admin/category",        icon: Store },
-    { name: "Contents",        path: "/admin/contents",        icon: FileText },
-    { name: "Analytics",       path: "/admin/analytics",       icon: BarChart },
-    { name: "Report",          path: "/admin/report",          icon: BarChart },
-    { name: "Create Admin",    path: "/admin/create-admin",    icon: ShieldCheck },
-    { name: "Settings",        path: "/admin/settings",        icon: Settings },
+    { name: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
+    { name: "Users", path: "/admin/users", icon: Users },
+    { name: "Earnings", path: "/admin/earnings", icon: DollarSign },
+    { name: "Vendors", path: "/admin/vendors", icon: Store },
+    { name: "Category", path: "/admin/category", icon: Store },
+    { name: "Contents", path: "/admin/contents", icon: FileText },
+    { name: "Analytics", path: "/admin/analytics", icon: BarChart },
+    { name: "Report", path: "/admin/report", icon: BarChart },
+    { name: "Create Admin", path: "/admin/create-admin", icon: ShieldCheck },
+    { name: "Settings", path: "/admin/settings", icon: Settings },
   ];
 
   return (
@@ -74,61 +74,61 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
 
       {/* Logo */}
       <Link href="/">
-      {/* Logo Section */}
-      <div className="relative flex flex-col justify-center items-center gap-2 py-5">
-        <div className="relative">
+        {/* Logo Section */}
+        <div className="relative flex flex-col justify-center items-center gap-2 py-5">
+          <div className="relative">
+          </div>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-[#F3AB0C] to-[#F96803] bg-clip-text text-transparent">
+              Detroit Fit 313
+            </h2>
+            <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-1">Admin Dashboard</p>
+          </div>
         </div>
-        <div className="text-center">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-[#F3AB0C] to-[#F96803] bg-clip-text text-transparent">
-            Detroit Fit 313
-          </h2>
-          <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-1">Admin Dashboard</p>
-        </div>
-      </div>
-            {/* Divider */}
-      <div className="mx-4 sm:mx-6 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent"></div>
+        {/* Divider */}
+        <div className="mx-4 sm:mx-6 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent"></div>
       </Link>
 
       {/* Sidebar Menu */}
       <div className="mt-10 px-5 text-[10px] relative">
-          <div className="relative flex flex-col gap-2">
-            
-            {/* The Glider (Sliding Background) */}
-            <div
-                className={`absolute left-0 w-full h-12 rounded-lg transition-all duration-700 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] z-0 ${buttonbg}`}
-                style={{
-                    transform: `translateY(${navItems.findIndex(i => isActive(i.path)) * (48 + 8)}px)`, // 48px height + 8px gap
-                    opacity: navItems.some(i => isActive(i.path)) ? 1 : 0
-                }}
-            />
+        <div className="relative flex flex-col gap-2">
 
-            {navItems.map((item) => (
+          {/* The Glider (Sliding Background) */}
+          <div
+            className={`absolute left-0 w-full h-12 rounded-lg transition-all duration-700 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] z-0 ${buttonbg} pointer-events-none`}
+            style={{
+              transform: `translateY(${navItems.findIndex(i => isActive(i.path)) * (48 + 8)}px)`, // 48px height + 8px gap
+              opacity: navItems.some(i => isActive(i.path)) ? 1 : 0
+            }}
+          />
+
+          {navItems.map((item) => (
             <Link key={item.path} href={item.path} className="block relative z-10">
-                <div
-                    className={`flex items-center gap-2 px-3 h-12 rounded-lg cursor-pointer transition-colors duration-500 ${
-                    isActive(item.path)
-                        ? "text-white"
-                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
-                    }`}
-                >
-                    <item.icon className="w-5 h-5" />
-                    <p className={`text-lg font-semibold`}>{item.name}</p>
-                </div>
+              <div
+                className={`flex items-center gap-2 px-3 h-12 rounded-lg cursor-pointer transition-colors duration-500 ${isActive(item.path)
+                  ? "text-white"
+                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
+                  }`}
+              >
+                <item.icon className="w-5 h-5" />
+                <p className={`text-lg font-semibold`}>{item.name}</p>
+              </div>
             </Link>
-            ))}
-          </div>
+          ))}
+        </div>
       </div>
 
       {/* Logout Button with Shadcn AlertDialog */}
       <div className="absolute mt-8 md:mt-20 mmd:mt-20 w-full px-5">
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <AnimatedButton
-              text="Logout"
-              onClick={() => { logout(); router.push("/auth"); }}
-              type="button"
-              className="w-full"
-            />
+            <div className="w-full">
+              <AnimatedButton
+                text="Logout"
+                type="button"
+                className="w-full"
+              />
+            </div>
           </AlertDialogTrigger>
           <AlertDialogContent className="bg-white">
             <AlertDialogHeader>
@@ -139,8 +139,8 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={() => { logout(); router.push("/auth"); }} 
+              <AlertDialogAction
+                onClick={() => { logout(); router.push("/auth"); }}
                 className="bg-red-500 hover:bg-red-600 text-white"
               >
                 Log out

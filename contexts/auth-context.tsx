@@ -1,22 +1,32 @@
-"use client";
-
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { logout as logoutAction } from "@/store/authSlice";
+import { RootState } from "@/store";
+import { useRouter } from "next/navigation";
 
 const AuthContext = createContext({
-  user: { role: "admin", fullName: "Admin User" }, // Mock user
-  isAuthenticated: true, // Mock authenticated
-  login: () => {},
-  logout: () => {},
+  user: null as any,
+  isAuthenticated: false,
+  login: () => { },
+  logout: () => { },
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState({ role: "admin", fullName: "Admin User" });
+  const dispatch = useDispatch();
+  const router = useRouter();
+  const { user, token } = useSelector((state: RootState) => state.auth);
 
-  const login = () => setUser({ role: "admin", fullName: "Admin User" });
-  const logout = () => setUser({ role: "", fullName: "" });
+  const login = () => {
+    // Login is handled by SignInPage directly via API and dispatch
+  };
 
-  // Mock checking auth
-  const isAuthenticated = !!user;
+  const logout = () => {
+    dispatch(logoutAction());
+    localStorage.removeItem("persist:auth"); // Ensure persist storage is cleared
+    router.push("/auth");
+  };
+
+  const isAuthenticated = !!token;
 
   return (
     <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
