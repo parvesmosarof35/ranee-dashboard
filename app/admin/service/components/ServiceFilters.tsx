@@ -2,6 +2,7 @@
 
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { DebouncedInput } from "@/components/ui/debounced-input";
 
 interface ServiceFiltersProps {
     searchTerm: string;
@@ -42,12 +43,12 @@ export function ServiceFilters({
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-4">
             <div className="relative flex-1 w-full md:max-w-xs">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                <Input
+                <DebouncedInput
                     placeholder="Search services..."
                     className="pl-9 bg-gray-50 border-gray-200"
                     value={searchTerm}
-                    onChange={(e) => {
-                        setSearchTerm(e.target.value);
+                    onChange={(val) => {
+                        setSearchTerm(String(val));
                         setPage(1);
                     }}
                 />
@@ -116,6 +117,8 @@ export function ServiceFilters({
                     <option value="price_high">Price: High to Low</option>
                 </select>
             </div>
+
+
         </div>
     );
 }

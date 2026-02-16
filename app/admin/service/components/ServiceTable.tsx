@@ -152,7 +152,7 @@ export function ServiceTable({
                         ) : (
                             services.map((service: any) => (
                                 <div key={service._id} className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col">
-                                    <div className="relative h-40 bg-gray-100">
+                                    <div className="relative h-60 bg-gray-100">
                                         {service.imgs && service.imgs[0] ? (
                                             <img src={service.imgs[0]} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                         ) : (

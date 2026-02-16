@@ -24,7 +24,7 @@ export function ServiceDetailsModal({ service, onClose }: ServiceDetailsModalPro
                     <X className="w-5 h-5" />
                 </Button>
 
-                <div className="relative h-48 bg-gray-100">
+                <div className="relative h-60 bg-gray-100">
                     {service.imgs && service.imgs[0] ? (
                         <img src={service.imgs[0]} alt={service.title} className="w-full h-full object-cover" />
                     ) : (

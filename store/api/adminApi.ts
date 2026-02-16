@@ -31,6 +31,18 @@ export const adminApi = baseApi.injectEndpoints({
                 `user/getallconsult?limit=${limit}&page=${page}`,
             providesTags: ["admin"],
         }),
+        // Get all bookings
+        getAllBookings: builder.query({
+            query: ({ page = 1, limit = 10, consultantid = "", status = "" }: any = {}) => {
+                const params = new URLSearchParams();
+                if (page) params.append("page", page.toString());
+                if (limit) params.append("limit", limit.toString());
+                if (consultantid) params.append("consultantid", consultantid);
+                if (status) params.append("status", status);
+                return `bookings/get_all_booked_data_for_admin?${params.toString()}`;
+            },
+            providesTags: ["admin"],
+        }),
     }),
 });
 export const {
@@ -38,6 +50,7 @@ export const {
     useGetAllAdminsQuery,
     useDeleteAdminMutation,
     useGetAllConsultantsQuery,
+    useGetAllBookingsQuery,
 } = adminApi;
 
 export default adminApi;

@@ -44,6 +44,7 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
 
   const navItems = [
     { name: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
+    { name: "Bookings", path: "/admin/bookings", icon: FileText },
     { name: "Users", path: "/admin/users", icon: Users },
     { name: "Earnings", path: "/admin/earnings", icon: DollarSign },
     { name: "Vendors", path: "/admin/vendors", icon: Store },
