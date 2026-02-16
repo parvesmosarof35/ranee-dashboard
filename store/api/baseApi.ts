@@ -39,5 +39,6 @@ export const baseApi = createApi({
     "reviews",
     "Hero",
     "category",
+    "service",
   ],
 });

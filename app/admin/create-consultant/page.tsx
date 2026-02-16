@@ -26,7 +26,7 @@ import {
 import { buttonbg, textPrimary, textSecondarygray } from "@/contexts/theme";
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
-import { useCreateAdminMutation, useGetAllAdminsQuery, useDeleteAdminMutation } from "@/store/api/adminApi";
+import { useCreateAdminMutation, useDeleteAdminMutation, useGetAllConsultantsQuery } from "@/store/api/adminApi";
 import Swal from "sweetalert2";
 
 export default function CreateAdminPage() {
@@ -47,12 +47,12 @@ export default function CreateAdminPage() {
 
     // API Hooks
     const [createAdmin, { isLoading: isCreating }] = useCreateAdminMutation();
-    const { data: adminsData, isLoading: isLoadingAdmins } = useGetAllAdminsQuery({ page, limit });
+    const { data: consultantsData, isLoading: isLoadingConsultants } = useGetAllConsultantsQuery({ page, limit });
     const [deleteAdmin] = useDeleteAdminMutation();
 
     // Handle potential data structures or empty states
-    const admins = adminsData?.data?.all_admin || [];
-    const meta = adminsData?.data?.meta || { page: 1, limit: 10, total: 0, totalPage: 1 };
+    const consultants = consultantsData?.data || [];
+    const meta = consultantsData?.meta || { page: 1, limit: 10, total: 0, totalPage: 1 };
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -75,12 +75,12 @@ export default function CreateAdminPage() {
             email: formData.email,
             password: formData.password,
             isVerify: true,
-            role: "admin",
+            role: "consultant",
         };
 
         try {
             await createAdmin(payload).unwrap();
-            toast.success("New admin created successfully!");
+            toast.success("New consultant created successfully!");
             setFormData({
                 fullname: "",
                 email: "",
@@ -90,7 +90,7 @@ export default function CreateAdminPage() {
             // Optionally reset to page 1 after creation
             // setPage(1);
         } catch (error: any) {
-            toast.error(error?.data?.message || "Failed to create admin");
+            toast.error(error?.data?.message || "Failed to create consultant");
         }
     };
 
@@ -109,13 +109,13 @@ export default function CreateAdminPage() {
                     await deleteAdmin(id).unwrap();
                     Swal.fire({
                         title: "Deleted!",
-                        text: "Admin has been deleted.",
+                        text: "Consultant has been deleted.",
                         icon: "success"
                     });
                 } catch (error: any) {
                     Swal.fire({
                         title: "Error!",
-                        text: error?.data?.message || "Failed to delete admin",
+                        text: error?.data?.message || "Failed to delete consultant",
                         icon: "error"
                     });
                 }
@@ -137,14 +137,14 @@ export default function CreateAdminPage() {
             {/* Header Section */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className={`text-3xl font-bold ${textPrimary}`}>Admin Management</h1>
-                    <p className={`${textSecondarygray} mt-1`}>Create manage and oversee administrative accounts.</p>
+                    <h1 className={`text-3xl font-bold ${textPrimary}`}>Consultant Management</h1>
+                    <p className={`${textSecondarygray} mt-1`}>Create manage and oversee consultant accounts.</p>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-                {/* Left Column: Create Admin Form */}
+                {/* Left Column: Create Consultant Form */}
                 <div className="lg:col-span-1">
                     <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden sticky top-6">
                         <div className={`p-6 border-b border-gray-100 bg-gray-50/50`}>
@@ -152,7 +152,7 @@ export default function CreateAdminPage() {
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${buttonbg} shadow-md`}>
                                     <UserPlus className="w-5 h-5 text-white" />
                                 </div>
-                                <h2 className="text-lg font-bold text-gray-800">Add New Admin</h2>
+                                <h2 className="text-lg font-bold text-gray-800">Add New Consultant</h2>
                             </div>
                         </div>
 
@@ -177,7 +177,7 @@ export default function CreateAdminPage() {
                                         <Input
                                             id="email"
                                             type="email"
-                                            placeholder="admin@example.com"
+                                            placeholder="consultant@example.com"
                                             value={formData.email}
                                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                             required
@@ -255,7 +255,7 @@ export default function CreateAdminPage() {
                     <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden h-full flex flex-col">
                         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                             <div>
-                                <h2 className="text-lg font-bold text-gray-800">Existing Administrators</h2>
+                                <h2 className="text-lg font-bold text-gray-800">Existing Consultants</h2>
                                 <p className={`text-sm ${textSecondarygray} mt-1`}>Manage current admin roles and permissions</p>
                             </div>
                             <Badge variant="secondary" className="bg-orange-50 text-orange-600 border-orange-100 px-3 py-1">
@@ -264,7 +264,7 @@ export default function CreateAdminPage() {
                         </div>
 
                         <div className="flex-1 overflow-auto">
-                            {isLoadingAdmins ? (
+                            {isLoadingConsultants ? (
                                 <div className="flex items-center justify-center h-40">
                                     <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
                                 </div>
@@ -279,7 +279,7 @@ export default function CreateAdminPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {admins.map((admin: any) => (
+                                        {consultants.map((admin: any) => (
                                             <TableRow key={admin._id} className="hover:bg-gray-50/50 border-b-gray-100 transition-colors">
                                                 <TableCell>
                                                     <div className="flex items-center gap-3">
@@ -294,7 +294,7 @@ export default function CreateAdminPage() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge variant="outline" className="font-medium border-gray-200 text-gray-600 bg-white shadow-sm">
-                                                        {admin.role}
+                                                       consultant
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>
@@ -306,7 +306,7 @@ export default function CreateAdminPage() {
                                                         {!admin.isBlocked ? "Active" : "Blocked"}
                                                     </div>
                                                 </TableCell>
-                                               {admin.role === "admin" ? (
+                                               
                                                     <TableCell className="text-right">
                                                         <div className="flex justify-end gap-2">
                                                             <Button
@@ -320,7 +320,7 @@ export default function CreateAdminPage() {
                                                             </Button>
                                                         </div>
                                                     </TableCell>
-                                                ) : null}
+                                            
                                             </TableRow>
                                         ))}
                                     </TableBody>

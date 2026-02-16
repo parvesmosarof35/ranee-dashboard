@@ -14,7 +14,7 @@ export const adminApi = baseApi.injectEndpoints({
         // Get all admins with pagination
         getAllAdmins: builder.query({
             query: ({ limit = 10, page = 1 }: any = {}) =>
-            `auth/find_by_all_admin?limit=${limit}&page=${page}`,
+                `auth/find_by_all_admin?limit=${limit}&page=${page}`,
             providesTags: ["admin"],
         }),
         // Delete admin
@@ -25,12 +25,19 @@ export const adminApi = baseApi.injectEndpoints({
             }),
             invalidatesTags: ["admin", "dashboard"],
         }),
+        // Get all consultants
+        getAllConsultants: builder.query({
+            query: ({ limit = 10, page = 1 }: any = {}) =>
+                `user/getallconsult?limit=${limit}&page=${page}`,
+            providesTags: ["admin"],
+        }),
     }),
 });
 export const {
     useCreateAdminMutation,
     useGetAllAdminsQuery,
     useDeleteAdminMutation,
+    useGetAllConsultantsQuery,
 } = adminApi;
 
 export default adminApi;
