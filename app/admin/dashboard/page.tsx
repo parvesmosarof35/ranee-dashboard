@@ -3,7 +3,6 @@
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import {
   Table,
   TableBody,
@@ -21,56 +20,37 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Eye, Ban, X } from "lucide-react";
 import { buttonbg, textPrimary, textSecondarygray } from "@/contexts/theme";
-
-// Mock Data for Chart
-const chartData = [
-  { month: "Jan", users: 680 },
-  { month: "Feb", users: 380 },
-  { month: "Mar", users: 780 },
-  { month: "Apr", users: 550 },
-  { month: "May", users: 440 },
-  { month: "June", users: 820 },
-  { month: "July", users: 550 },
-  { month: "Aug", users: 600 },
-  { month: "Sep", users: 820 },
-  { month: "Oct", users: 720 },
-  { month: "Nov", users: 550 },
-  { month: "Dec", users: 780 },
-];
-
-const maxVal = Math.max(...chartData.map((d) => d.users));
-
-// Mock Data for Users
-const recentUsers = Array(6).fill({
-  id: "01",
-  name: "Robert Fox",
-  email: "fox@email",
-  phone: "+123124",
-  date: "02-24-2024",
-  avatar: "/placeholder-avatar.png", // We'll manage with a placeholder or fallback
-});
+import {
+  useGetDashboardStatsQuery,
+  useGetUserGrowthQuery,
+  useGetRecentUsersQuery,
+} from "@/store/api/dashboardStatsApi";
+import { useDeleteUserMutation } from "@/store/api/authApi";
+import Swal from "sweetalert2"; // Ensure Swal is installed/imported if used, or use AlertDialog for consistency
 
 // Custom Modal for User Details
 const UserDetailModal = ({ isOpen, onClose, user }: { isOpen: boolean; onClose: () => void; user: any }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-lg w-[90%] max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-lg w-[90%] max-w-md p-6 relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
           <X className="w-5 h-5" />
         </button>
         <div className="text-center">
           <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto mb-4 overflow-hidden relative">
-            {/* Placeholder Image */}
-            <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-2xl font-bold">
-              {user?.name?.charAt(0)}
-            </div>
+            {user?.photo ? (
+              <img src={user.photo} alt={user.fullname} className="w-full h-full object-cover" />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-xl font-bold">
+                {user?.fullname?.charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
-          <h3 className="text-xl font-bold text-[#2E6F65]">{user?.name}</h3>
+          <h3 className="text-xl font-bold text-[#2E6F65]">{user?.fullname}</h3>
           <p className="text-sm text-gray-500 mb-6">{user?.email}</p>
 
           <div className="space-y-3 text-left">
@@ -80,11 +60,7 @@ const UserDetailModal = ({ isOpen, onClose, user }: { isOpen: boolean; onClose: 
             </div>
             <div className="flex justify-between border-b pb-2">
               <span className="text-gray-500">Joined Date</span>
-              <span className="font-medium">{user?.date}</span>
-            </div>
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-gray-500">Status</span>
-              <span className="font-medium text-green-600">Active</span>
+              <span className="font-medium">{user?.joinedDate}</span>
             </div>
           </div>
         </div>
@@ -96,58 +72,78 @@ const UserDetailModal = ({ isOpen, onClose, user }: { isOpen: boolean; onClose: 
 export default function AdminDashboard() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
-  const [userToBlock, setUserToBlock] = useState<any>(null);
-  const [isBlockOpen, setIsBlockOpen] = useState(false);
+
+  const [selectedYear, setSelectedYear] = useState(2024);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
 
-  useEffect(() => {
-    // Verbose debugging
-    console.log("--- AdminDashboard Auth Check ---");
-    console.log("isAuthenticated:", isAuthenticated);
-    console.log("User Object:", JSON.stringify(user, null, 2));
-    console.log("User Role:", user?.role);
+  // API Hooks
+  const { data: statsData, isLoading: isStatsLoading } = useGetDashboardStatsQuery(undefined);
+  const { data: growthData, isLoading: isGrowthLoading } = useGetUserGrowthQuery(selectedYear);
+  const { data: recentUsersData, isLoading: isRecentUsersLoading, refetch: refetchRecentUsers } = useGetRecentUsersQuery(10);
+  const [deleteUser] = useDeleteUserMutation();
 
+  const stats = statsData?.data || { totalUsers: 0, totalRevenue: 0 };
+  const userGrowth = growthData?.data?.monthlyData || [];
+  const recentUsers = recentUsersData?.data || [];
+
+  const maxVal = userGrowth.length > 0 ? Math.max(...userGrowth.map((d: any) => d.totalUsers)) : 100;
+
+  useEffect(() => {
     if (!isAuthenticated) {
-      console.warn("Redirecting to /auth because !isAuthenticated");
       router.push("/auth");
     } else if (user) {
       const isNotAdmin = user.role !== "admin";
       const isNotSuperAdmin = user.role !== "superAdmin";
 
-      console.log("Role checks:", { isNotAdmin, isNotSuperAdmin });
-
       if (isNotAdmin && isNotSuperAdmin) {
-        // Check case-insensitivity
         const roleLower = user.role ? user.role.toLowerCase() : "";
-        if (roleLower === "admin" || roleLower === "superadmin") {
-          console.log("Allowed via case-insensitive check:", roleLower);
-          return;
+        if (roleLower !== "admin" && roleLower !== "superadmin") {
+          router.push("/auth");
         }
-
-        console.warn(`Access denied. Role '${user.role}' is not 'admin' or 'superAdmin'. Redirecting to /auth.`);
-        router.push("/auth");
-      } else {
-        console.log("Access granted. User is admin or superAdmin.");
       }
-    } else {
-      console.log("User is null but authenticated. Waiting for user data...");
     }
   }, [isAuthenticated, user, router]);
+
+  const handleDelete = async (id: string) => {
+    Swal.fire({
+      title: "Are you sure?",
+      text: "You won't be able to revert this!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Yes, delete it!"
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await deleteUser(id).unwrap();
+          Swal.fire("Deleted!", "User has been deleted from records.", "success");
+          refetchRecentUsers();
+        } catch (error: any) {
+          Swal.fire("Error!", error?.data?.message || "Failed to delete user", "error");
+        }
+      }
+    });
+  };
 
   if (!user || (user.role !== "admin" && user.role !== "superAdmin")) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50/50 space-y-5">
+    <div className="min-h-screen space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
       {/* Stats Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-0 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-8 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-100">
-          <h2 className="text-4xl font-bold text-slate-500 mb-2">38.6K</h2>
-          <p className={`${textSecondarygray} font-medium`}>Users</p>
+          <h2 className="text-4xl font-bold text-slate-500 mb-2">
+            {isStatsLoading ? "..." : stats.totalUsers?.toLocaleString()}
+          </h2>
+          <p className={`${textSecondarygray} font-medium`}>Total Users</p>
         </div>
         <div className="p-8 flex flex-col items-center justify-center">
-          <h2 className="text-4xl font-bold text-slate-500 mb-2">4.9M</h2>
+          <h2 className="text-4xl font-bold text-slate-500 mb-2">
+            {isStatsLoading ? "..." : stats.totalRevenue?.toLocaleString()}
+          </h2>
           <p className={`${textSecondarygray} font-medium`}>Total Revenue</p>
         </div>
       </div>
@@ -162,9 +158,13 @@ export default function AdminDashboard() {
               <span className="text-sm text-gray-500">Users</span>
             </div>
           </div>
-          <select className={`bg-${buttonbg.replace("bg-", "")} !text-gray-600 px-4 py-2 rounded-lg text-sm border-none outline-none cursor-pointer`}>
-            <option>Year-2024</option>
-            <option>Year-2023</option>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value.replace("Year-", "")))}
+            className={`bg-${buttonbg.replace("bg-", "")} !text-gray-600 px-4 py-2 rounded-lg text-sm border-none outline-none cursor-pointer`}
+          >
+            <option value={2024}>Year-2024</option>
+            <option value={2025}>Year-2025</option>
           </select>
         </div>
 
@@ -172,9 +172,9 @@ export default function AdminDashboard() {
         <div className="relative h-[300px] w-full mt-10">
           {/* Grid Lines */}
           <div className="absolute inset-0 flex flex-col justify-between text-xs text-gray-400 pointer-events-none">
-            {[800, 600, 400, 200, 0].map((val) => (
+            {[maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0].map((val) => (
               <div key={val} className="flex items-center w-full">
-                <span className="w-10 text-right pr-2">{val.toFixed(2)}</span>
+                <span className="w-10 text-right pr-2">{Math.round(val)}</span>
                 <div className="h-[1px] flex-1 bg-gray-100 border-dashed border-gray-200"></div>
               </div>
             ))}
@@ -182,26 +182,32 @@ export default function AdminDashboard() {
 
           {/* Bars */}
           <div className="absolute inset-0 flex justify-between items-end pl-12 pr-4 pt-4">
-            {chartData.map((data, index) => {
-              const heightPercent = (data.users / 800) * 100;
-              return (
-                <div key={index} className="flex flex-col items-center justify-end gap-2 group w-full h-full">
-                  {/* Tooltip on hover */}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute top-0 bg-[#FCD34D] text-[#0D0D0D] text-xs py-1 px-3 rounded shadow-sm mb-2 z-10 pointer-events-none whitespace-nowrap">
-                    <p className="font-bold">Users</p>
-                    <p>{data.users}</p>
-                    <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[4px] border-t-[#FCD34D]"></div>
-                  </div>
+            {isGrowthLoading ? (
+              <div className="w-full h-full flex items-center justify-center text-gray-400">Loading Chart...</div>
+            ) : userGrowth.length > 0 ? (
+              userGrowth.map((data: any, index: number) => {
+                const heightPercent = (data.totalUsers / maxVal) * 100;
+                return (
+                  <div key={index} className="flex flex-col items-center justify-end gap-2 group w-full h-full">
+                    {/* Tooltip on hover */}
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute top-0 bg-[#FCD34D] text-[#0D0D0D] text-xs py-1 px-3 rounded shadow-sm mb-2 z-10 pointer-events-none whitespace-nowrap">
+                      <p className="font-bold">Users</p>
+                      <p>{data.totalUsers}</p>
+                      <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[4px] border-t-[#FCD34D]"></div>
+                    </div>
 
-                  <div
-                    style={{ height: `${heightPercent > 100 ? 100 : heightPercent}%` }}
-                    className={`w-3 sm:w-4 md:w-8 bg-${buttonbg.replace("bg-", "")} rounded-t-sm transition-all duration-300 hover:opacity-80 relative`}
-                  >
+                    <div
+                      style={{ height: `${heightPercent > 100 ? 100 : heightPercent}%` }}
+                      className={`w-3 sm:w-4 md:w-8 bg-${buttonbg.replace("bg-", "")} rounded-t-sm transition-all duration-300 hover:opacity-80 relative`}
+                    >
+                    </div>
+                    <span className="text-xs text-gray-500 mt-2">{data.month}</span>
                   </div>
-                  <span className="text-xs text-gray-500 mt-2">{data.month}</span>
-                </div>
-              )
-            })}
+                )
+              })
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400">No data available for {selectedYear}</div>
+            )}
           </div>
         </div>
       </div>
@@ -215,41 +221,41 @@ export default function AdminDashboard() {
           <Table>
             <TableHeader className={` text-black bg-white hover:bg-`}>
               <TableRow className="border-none hover:bg-transparent">
-                <TableHead className="text-black font-semibold">S.ID</TableHead>
+                <TableHead className="text-black font-semibold pl-6">S.ID</TableHead>
                 <TableHead className="text-black font-semibold">Full Name</TableHead>
                 <TableHead className="text-black font-semibold">Email</TableHead>
                 <TableHead className="text-black font-semibold">Phone No</TableHead>
                 <TableHead className="text-black font-semibold">Joined Date</TableHead>
-                <TableHead className="text-black font-semibold text-center">Action</TableHead>
+                <TableHead className="text-black font-semibold text-center pr-6">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {recentUsers.map((u, i) => (
+              {isRecentUsersLoading ? (
+                <TableRow><TableCell colSpan={6} className="text-center py-8">Loading recent users...</TableCell></TableRow>
+              ) : recentUsers.map((u: any, i: number) => (
                 <TableRow key={i} className="hover:bg-gray-50 border-b border-gray-100">
-                  <TableCell className="font-medium text-gray-600">{u.id}</TableCell>
+                  <TableCell className="font-medium text-gray-600 pl-6 text-center">{u.serialId || i + 1}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative">
-                        {/* Avatar Placeholder */}
-                        <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-500">
-                          {u.name.charAt(0)}
-                        </div>
+                        {u?.photo ? (
+                          <img src={u.photo} alt={u.fullname} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-500">
+                            {u.fullname?.charAt(0).toUpperCase()}
+                          </div>
+                        )}
                       </div>
-                      <span className="font-medium text-gray-900">{u.name}</span>
+                      <span className="font-medium text-gray-900">{u.fullname}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-gray-600">{u.email}</TableCell>
                   <TableCell className="text-gray-600">{u.phone}</TableCell>
-                  <TableCell className="text-gray-600">{u.date}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-gray-600">{u.joinedDate}</TableCell>
+                  <TableCell className="pr-6">
                     <div className="flex items-center justify-center gap-3">
-                      {/* Block Action Button */}
-                      <button
-                        onClick={() => { setUserToBlock(u); setIsBlockOpen(true); }}
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50 p-2 rounded-full transition-colors"
-                      >
-                        <Ban className="w-5 h-5" />
-                      </button>
+                      {/* Delete Action Button - Reusing logic from Users Page if possible, or new Delete endpoint if exists. Assuming same Delete endpoint for now using id if available, or just visual if not provided in 'recent-users' response. Response has no ID! Checking recent-users response... it has 'serialId' but not actual DB ID. I will disable delete or assume ID is hidden, but response example shows no ID. I'll comment out delete or try to use what I have. Wait, user provided response for recent users doesn't have _id. I will assume it might be added or I can't delete here. I'll use Trash icon but might fail if no ID. Safest is to remove Delete from this view or ask. I'll keep UI consistent but maybe disable delete if no ID. Actually, I'll use `Ban` visual as per mock but hook it to nothing or log warning? No, wait, User provided mock shows Ban and Eye. I will implement Ban as Delete (since Block was replaced by Delete elsewhere) if I have ID. If not, I'll hide it. */}
+                      {/* Update: User request showed response with only serialId. I cannot delete without ID. I will show Eye only or generic delete that logs "No ID". */}
 
                       {/* View Action Button */}
                       <button
@@ -269,31 +275,6 @@ export default function AdminDashboard() {
 
       {/* User Details Modal */}
       <UserDetailModal isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} user={selectedUser} />
-
-      {/* Block User Alert Dialog - Single Instance */}
-      <AlertDialog open={isBlockOpen} onOpenChange={setIsBlockOpen}>
-        <AlertDialogContent className="bg-white">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Block User?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to block <span className="font-bold text-gray-900">{userToBlock?.name}</span>? They will lose access to the platform.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setUserToBlock(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                // Implement block logic here
-                console.log("Blocking user:", userToBlock?.id);
-                setIsBlockOpen(false);
-              }}
-              className="bg-red-500 hover:bg-red-600 text-white"
-            >
-              Block
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
     </div>
   );

@@ -16,11 +16,17 @@ const contactApi = baseApi.injectEndpoints({
 
     // Get all Contacts with optional search/filter
     getAllContact: builder.query({
-      query: (params) => ({
-        url: "contact/all_contact",
-        method: "GET",
-        params,
-      }),
+      query: ({ page = 1, limit = 10, searchTerm = "" }: any = {}) => {
+        const params = new URLSearchParams();
+        if (page) params.append("page", page.toString());
+        if (limit) params.append("limit", limit.toString());
+        if (searchTerm) params.append("searchTerm", searchTerm);
+
+        return {
+          url: `contact/all_contact?${params.toString()}`,
+          method: "GET",
+        };
+      },
       providesTags: ["contact"],
     }),
 

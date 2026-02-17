@@ -110,6 +110,29 @@ const authApi = baseApi.injectEndpoints({
       invalidatesTags: ["auth"],
     }),
 
+    findAllUsers: builder.query({
+      query: ({ page = 1, limit = 10, searchTerm = "" }: any = {}) => {
+        const params = new URLSearchParams();
+        if (page) params.append("page", page.toString());
+        if (limit) params.append("limit", limit.toString());
+        if (searchTerm) params.append("searchTerm", searchTerm);
+
+        return {
+          url: `auth/find_by_admin_all_users?${params.toString()}`,
+          method: "GET",
+        };
+      },
+      providesTags: ["User"],
+    }),
+
+    deleteUser: builder.mutation({
+      query: (id) => ({
+        url: `user/delete_user/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["User"],
+    }),
+
   }),
 });
 
@@ -128,6 +151,8 @@ export const {
   useGetSingleUserQuery,
   useGuestLoginMutation,
   useGoogleLoginMutation,
+  useFindAllUsersQuery,
+  useDeleteUserMutation,
 } = authApi;
 
 export default authApi;

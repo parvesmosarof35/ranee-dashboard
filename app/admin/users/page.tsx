@@ -17,67 +17,64 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Eye, Ban, Search, X } from "lucide-react";
+import { Eye, Trash2, Search, X } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
-import { buttonbg } from "@/contexts/theme";
-
-// Mock Data
-const generateUsers = () => {
-  return Array(8).fill(null).map((_, i) => ({
-    id: "01",
-    name: "Robert Fox",
-    email: "fox@email",
-    phone: "+123124",
-    date: "02-24-2024",
-    avatar: "/placeholder.png"
-  }));
-};
-
-const usersData = generateUsers();
+import { buttonbg, textPrimary } from "@/contexts/theme";
+import { useFindAllUsersQuery, useDeleteUserMutation } from "@/store/api/authApi";
+import { DebouncedInput } from "@/components/ui/debounced-input";
+import Swal from "sweetalert2";
 
 // User Detail Modal Component
 const UserDetailModal = ({ isOpen, onClose, user }: { isOpen: boolean; onClose: () => void; user: any }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
           <X className="w-5 h-5" />
         </button>
         <div className="text-center">
           <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto mb-4 overflow-hidden relative">
-            <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-xl font-bold">
-              {user?.name?.charAt(0)}
-            </div>
+            {user?.photo ? (
+              <img src={user.photo} alt={user.fullname} className="w-full h-full object-cover" />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-xl font-bold">
+                {user?.fullname?.charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
-          <h3 className="text-xl font-bold text-[#2E6F65]">{user?.name}</h3>
+          <h3 className="text-xl font-bold text-[#2E6F65]">{user?.fullname}</h3>
           <p className="text-sm text-gray-500 mb-6">{user?.email}</p>
 
           <div className="space-y-3 text-left">
             <div className="flex justify-between border-b pb-2">
               <span className="text-gray-500">Phone</span>
-              <span className="font-medium">{user?.phone}</span>
+              <span className="font-medium">{user?.phoneNumber || "N/A"}</span>
             </div>
             <div className="flex justify-between border-b pb-2">
               <span className="text-gray-500">Joined Date</span>
-              <span className="font-medium">{user?.date}</span>
+              <span className="font-medium">
+                {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+              </span>
+            </div>
+            <div className="flex justify-between border-b pb-2">
+              <span className="text-gray-500">Role</span>
+              <span className="font-medium capitalize">{user?.role}</span>
             </div>
             <div className="flex justify-between border-b pb-2">
               <span className="text-gray-500">Status</span>
-              <span className="font-medium text-green-600">Active</span>
+              <span className={`font-medium ${user?.status === 'blocked' ? 'text-red-600' : 'text-green-600'} capitalize`}>
+                {user?.status || "Active"}
+              </span>
+            </div>
+            <div className="flex justify-between border-b pb-2">
+              <span className="text-gray-500">Verified</span>
+              <span className={`font-medium ${user?.isVerify ? 'text-green-600' : 'text-yellow-600'}`}>
+                {user?.isVerify ? "Yes" : "No"}
+              </span>
             </div>
           </div>
         </div>
@@ -90,25 +87,53 @@ export default function UsersPage() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
 
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const { data: usersData, isLoading, refetch } = useFindAllUsersQuery({ page, limit, searchTerm });
+  const [deleteUser] = useDeleteUserMutation();
+
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
 
-  const [userToBlock, setUserToBlock] = useState<any>(null);
-  const [isBlockOpen, setIsBlockOpen] = useState(false);
+  const allUsers = usersData?.data?.all_users || [];
+  const meta = usersData?.data?.meta || { page: 1, limit: 10, total: 0, totalPage: 1 };
 
   useEffect(() => {
     if (!isAuthenticated) {
-      router.push("/auth");
       router.push("/auth");
     } else if (user && (user.role !== "admin" && user.role !== "superAdmin")) {
       router.push("/");
     }
   }, [isAuthenticated, user, router]);
 
+  const handleDelete = async (id: string) => {
+    Swal.fire({
+      title: "Are you sure?",
+      text: "You won't be able to revert this!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Yes, delete it!"
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await deleteUser(id).unwrap();
+          Swal.fire("Deleted!", "User has been deleted.", "success");
+          refetch();
+        } catch (error: any) {
+          Swal.fire("Error!", error?.data?.message || "Failed to delete user", "error");
+        }
+      }
+    });
+  };
+
   if (!user || (user.role !== "admin" && user.role !== "superAdmin")) return null;
 
   return (
-    <div className="min-h-screen space-y-5">
+    <div className="w-full mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
       {/* Header Section */}
       <div className={`bg-gradient-to-r ${buttonbg} rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm`}>
@@ -117,138 +142,141 @@ export default function UsersPage() {
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
           {/* Search */}
           <div className="relative w-full sm:w-[300px]">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <Input
-              placeholder="Search User"
-              className="pl-10 bg-white border-none h-11 text-gray-900 placeholder:text-gray-400 rounded-lg"
+            <DebouncedInput
+              placeholder="Search User..."
+              className="pl-3 bg-white border-none h-11 text-gray-900 placeholder:text-gray-400 rounded-lg w-full"
+              value={searchTerm}
+              onChange={(val) => {
+                setSearchTerm(String(val));
+                setPage(1);
+              }}
             />
           </div>
-
-          {/* Blocked Users Button */}
-          <Button className="bg-white text-[#2E6F65] hover:bg-white/90 font-semibold h-11 px-6 rounded-lg w-full sm:w-auto">
-            Blocked Users
-          </Button>
         </div>
       </div>
 
       {/* Table Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden p-5">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="bg-white">
+            <TableHeader className="bg-gray-50/50">
               <TableRow className="border-b border-gray-100 hover:bg-transparent">
-                <TableHead className="text-[#58976B] font-semibold text-base py-5">S.ID</TableHead>
+                <TableHead className="text-[#58976B] font-semibold text-base py-5 pl-6">S.ID</TableHead>
                 <TableHead className="text-[#58976B] font-semibold text-base py-5">Full Name</TableHead>
                 <TableHead className="text-[#58976B] font-semibold text-base py-5">Email</TableHead>
                 <TableHead className="text-[#58976B] font-semibold text-base py-5">Phone No</TableHead>
                 <TableHead className="text-[#58976B] font-semibold text-base py-5">Joined Date</TableHead>
-                <TableHead className="text-[#58976B] font-semibold text-base text-center py-5">Action</TableHead>
+                <TableHead className="text-[#58976B] font-semibold text-base py-5">Role</TableHead>
+                <TableHead className="text-[#58976B] font-semibold text-base text-center py-5 pr-6">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {usersData.map((u, i) => (
-                <TableRow key={i} className="hover:bg-gray-50 border-b border-gray-100">
-                  <TableCell className="font-medium text-gray-600 py-4">{i + 1}</TableCell>
-                  <TableCell className="py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden relative">
-                        <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-gray-500">
-                          {u.name.charAt(0)}
-                        </div>
-                      </div>
-                      <span className="font-medium text-gray-900">{u.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-gray-600 py-4">{u.email}</TableCell>
-                  <TableCell className="text-gray-600 py-4">{u.phone}</TableCell>
-                  <TableCell className="text-gray-600 py-4">{u.date}</TableCell>
-                  <TableCell className="py-4">
-                    <div className="flex items-center justify-center gap-3">
-                      <button
-                        onClick={() => { setUserToBlock(u); setIsBlockOpen(true); }}
-                        className="text-red-500 hover:text-red-600 p-2 hover:bg-red-50 rounded-full transition-colors"
-                      >
-                        <Ban className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => { setSelectedUser(u); setIsViewOpen(true); }}
-                        className="text-[#58976B] hover:text-[#2E6F65] p-2 hover:bg-green-50 rounded-full transition-colors"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </TableCell>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center">Loading users...</TableCell>
                 </TableRow>
-              ))}
+              ) : allUsers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-gray-500">No users found.</TableCell>
+                </TableRow>
+              ) : (
+                allUsers.map((u: any, i: number) => (
+                  <TableRow key={u._id} className="hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors">
+                    <TableCell className="font-medium text-gray-600 py-4 pl-6">{(meta.page - 1) * meta.limit + i + 1}</TableCell>
+                    <TableCell className="py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden relative shrink-0">
+                          {u.photo ? (
+                            <img src={u.photo} alt={u.fullname} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-gray-500">
+                              {u.fullname?.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <span className="font-medium text-gray-900">{u.fullname}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-gray-600 py-4">{u.email}</TableCell>
+                    <TableCell className="text-gray-600 py-4">{u.phoneNumber || "N/A"}</TableCell>
+                    <TableCell className="text-gray-600 py-4">
+                      {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
+                    </TableCell>
+                    <TableCell className="text-gray-600 py-4 capitalize">{u.role}</TableCell>
+                    <TableCell className="py-4 pr-6">
+                      <div className="flex items-center justify-center gap-3">
+                        <button
+                          onClick={() => handleDelete(u.id || u._id)}
+                          className="text-red-500 hover:text-red-600 p-2 hover:bg-red-50 rounded-full transition-colors"
+                          title="Delete User"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => { setSelectedUser(u); setIsViewOpen(true); }}
+                          className="text-[#58976B] hover:text-[#2E6F65] p-2 hover:bg-green-50 rounded-full transition-colors"
+                          title="View Details"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
-      </div>
 
-      {/* Pagination Section */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2">
-        {/* <p className="text-[#58976B] text-sm font-medium">SHOWING 1-8 OF 250</p> */}
+        {/* Pagination Section */}
+        {meta.totalPage > 1 && (
+          <div className="py-4 border-t border-gray-100">
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (page > 1) setPage(page - 1);
+                    }}
+                    className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                  />
+                </PaginationItem>
 
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious href="#" className="text-gray-500 hover:text-[#2E6F65]" />
-            </PaginationItem>
-            <PaginationItem>
-              <PaginationLink href="#" isActive className="bg-[#2E6F65] text-white hover:bg-[#2E6F65]/90 hover:text-white border-0">1</PaginationLink>
-            </PaginationItem>
-            <PaginationItem>
-              <PaginationLink href="#" className="text-gray-600 hover:text-[#2E6F65] hover:bg-gray-100 border-0">2</PaginationLink>
-            </PaginationItem>
-            <PaginationItem>
-              <PaginationLink href="#" className="text-gray-600 hover:text-[#2E6F65] hover:bg-gray-100 border-0">3</PaginationLink>
-            </PaginationItem>
-            <PaginationItem>
-              <span className="flex items-center justify-center h-9 w-9 text-gray-400">...</span>
-            </PaginationItem>
-            <PaginationItem>
-              <PaginationLink href="#" className="text-gray-600 hover:text-[#2E6F65] hover:bg-gray-100 border-0">30</PaginationLink>
-            </PaginationItem>
-            <PaginationItem>
-              <PaginationLink href="#" className="text-gray-600 hover:text-[#2E6F65] hover:bg-gray-100 border-0">60</PaginationLink>
-            </PaginationItem>
-            <PaginationItem>
-              <PaginationLink href="#" className="text-gray-600 hover:text-[#2E6F65] hover:bg-gray-100 border-0">120</PaginationLink>
-            </PaginationItem>
-            <PaginationItem>
-              <PaginationNext href="#" className="text-gray-500 hover:text-[#2E6F65]" />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
+                {Array.from({ length: meta.totalPage }, (_, i) => i + 1).map((pageNum) => (
+                  <PaginationItem key={pageNum}>
+                    <PaginationLink
+                      href="#"
+                      isActive={page === pageNum}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setPage(pageNum);
+                      }}
+                    >
+                      {pageNum}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (page < meta.totalPage) setPage(page + 1);
+                    }}
+                    className={page === meta.totalPage ? "pointer-events-none opacity-50" : ""}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
       </div>
 
       {/* User Details Modal */}
       <UserDetailModal isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} user={selectedUser} />
-
-      {/* Block User Alert Dialog */}
-      <AlertDialog open={isBlockOpen} onOpenChange={setIsBlockOpen}>
-        <AlertDialogContent className="bg-white">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Block User?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to block <span className="font-bold text-gray-900">{userToBlock?.name}</span>? They will lose access to the platform.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setUserToBlock(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                // Implement block logic here
-                console.log("Blocking user:", userToBlock?.id);
-                setIsBlockOpen(false);
-              }}
-              className="bg-red-500 hover:bg-red-600 text-white"
-            >
-              Block
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
     </div>
   );
