@@ -73,7 +73,7 @@ export default function AdminDashboard() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
 
-  const [selectedYear, setSelectedYear] = useState(2024);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
 
@@ -87,7 +87,8 @@ export default function AdminDashboard() {
   const userGrowth = growthData?.data?.monthlyData || [];
   const recentUsers = recentUsersData?.data || [];
 
-  const maxVal = userGrowth.length > 0 ? Math.max(...userGrowth.map((d: any) => d.totalUsers)) : 100;
+  const rawMax = userGrowth.length > 0 ? Math.max(...userGrowth.map((d: any) => d.totalUsers)) : 0;
+  const maxVal = rawMax > 0 ? rawMax : 100;
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -163,8 +164,9 @@ export default function AdminDashboard() {
             onChange={(e) => setSelectedYear(Number(e.target.value.replace("Year-", "")))}
             className={`bg-${buttonbg.replace("bg-", "")} !text-gray-600 px-4 py-2 rounded-lg text-sm border-none outline-none cursor-pointer`}
           >
-            <option value={2024}>Year-2024</option>
-            <option value={2025}>Year-2025</option>
+            {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((year) => (
+              <option key={year} value={year}>Year-{year}</option>
+            ))}
           </select>
         </div>
 

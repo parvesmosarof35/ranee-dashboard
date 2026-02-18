@@ -38,10 +38,12 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const isActive = (path: string) => pathname === path;
 
+
+  //for admin
   const navItems = [
     { name: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
     { name: "Bookings", path: "/admin/bookings", icon: FileText },
@@ -49,12 +51,26 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
     { name: "Category", path: "/admin/category", icon: Store },
     { name: "Service", path: "/admin/service", icon: Store },
     { name: "Contents", path: "/admin/contents", icon: FileText },
-    { name: "Analytics", path: "/admin/analytics", icon: BarChart },
+    // { name: "Analytics", path: "/admin/analytics", icon: BarChart },
     { name: "Contact", path: "/admin/report", icon: BarChart },
-    { name: "Create Admin", path: "/admin/create-admin", icon: ShieldCheck },
+    { name: "Create Admin", path: "/admin/create-admin", icon: ShieldCheck }, // only should be visible for superAdmin
     { name: "Consultant", path: "/admin/create-consultant", icon: ShieldCheck },
     { name: "Settings", path: "/admin/settings", icon: Settings },
   ];
+
+  //for consultant
+  const navItemsConsultant = [
+    { name: "Dashboard", path: "/admin/consultant/dashboard", icon: LayoutDashboard },
+    { name: "My Services", path: "/admin/consultant/my-services", icon: FileText },
+    { name: "Slots", path: "/admin/consultant/slots", icon: Users },
+    { name: "Settings", path: "/admin/settings", icon: Settings },
+  ];
+
+
+
+  // Determine which nav items to use based on role
+  const role = user?.role?.toLowerCase();
+  const currentNavItems = role === "consultant" ? navItemsConsultant : navItems;
 
   return (
     <div
@@ -98,12 +114,12 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
           <div
             className={`absolute left-0 w-full h-12 rounded-lg transition-all duration-700 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] z-0 ${buttonbg} pointer-events-none`}
             style={{
-              transform: `translateY(${navItems.findIndex(i => isActive(i.path)) * (48 + 8)}px)`, // 48px height + 8px gap
-              opacity: navItems.some(i => isActive(i.path)) ? 1 : 0
+              transform: `translateY(${currentNavItems.findIndex(i => isActive(i.path)) * (48 + 8)}px)`, // 48px height + 8px gap
+              opacity: currentNavItems.some(i => isActive(i.path)) ? 1 : 0
             }}
           />
 
-          {navItems.map((item) => (
+          {currentNavItems.map((item) => (
             <Link key={item.path} href={item.path} className="block relative z-10">
               <div
                 className={`flex items-center gap-2 px-3 h-12 rounded-lg cursor-pointer transition-colors duration-500 ${isActive(item.path)

@@ -19,10 +19,12 @@ import {
 } from "@/contexts/theme";
 import { useGetMyProfileQuery, useUpdateProfileMutation, useChangePasswordMutation } from "@/store/api/authApi";
 import { getImageUrl } from "@/store/config/envConfig";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function ProfilePage() {
   const { data: profileData } = useGetMyProfileQuery({});
-  const user = profileData?.data;
+  const { user: authUser } = useAuth();
+  const user = profileData?.data || authUser;
   const [activeTab, setActiveTab] = useState("edit-profile");
 
   return (

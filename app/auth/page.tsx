@@ -44,7 +44,7 @@ function SignInPage() {
 
       if (res.success && res.data.accessToken) {
         const token = res.data.accessToken;
-        const user = jwtDecode(token);
+        const user: any = jwtDecode(token);
 
         dispatch(setUser({ user, token }));
         toast.success(res.message || "Successfully Login");
@@ -58,7 +58,11 @@ function SignInPage() {
         }
 
         // Use replace to prevent going back to login page
-        router.replace("/");
+        if (user.role === 'consultant') {
+          router.replace("/admin/consultant/dashboard");
+        } else {
+          router.replace("/");
+        }
       }
     } catch (error: any) {
       console.error("Login error:", error);

@@ -15,7 +15,8 @@ interface MainHeaderProps {
 export default function MainHeader({ toggleSidebar }: MainHeaderProps) {
   const router = useRouter();
   const { data: profileData } = useGetMyProfileQuery({});
-  const user = profileData?.data;
+  const { user: authUser } = useAuth();
+  const user = profileData?.data || authUser;
 
   // Dummy unread count
   const unreadCount = 3;

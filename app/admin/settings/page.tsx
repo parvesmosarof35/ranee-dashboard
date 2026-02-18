@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { buttonbg } from "@/contexts/theme";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function SettingsPage() {
+  const { user } = useAuth();
+  const isConsultant = user?.role === "consultant";
   return (
     <div className="w-full mx-auto">
       {/* Card */}
@@ -42,40 +45,44 @@ export default function SettingsPage() {
             </Link>
           </li>
 
-          {/* Privacy Policy */}
-          <li>
-            <Link
-              href="/admin/privacy-policy"
-              className="flex items-center justify-between px-6 py-5 hover:bg-gray-50 transition group"
-            >
-              <span className="text-gray-700 font-medium text-base group-hover:text-blue-600 transition-colors">Privacy Policy</span>
-              <ChevronRight className="text-gray-400 group-hover:text-blue-600 transition-colors w-5 h-5" />
-            </Link>
-          </li>
+          {!isConsultant && (
+            <>
+              {/* Privacy Policy */}
+              <li>
+                <Link
+                  href="/admin/privacy-policy"
+                  className="flex items-center justify-between px-6 py-5 hover:bg-gray-50 transition group"
+                >
+                  <span className="text-gray-700 font-medium text-base group-hover:text-blue-600 transition-colors">Privacy Policy</span>
+                  <ChevronRight className="text-gray-400 group-hover:text-blue-600 transition-colors w-5 h-5" />
+                </Link>
+              </li>
 
-          {/* Terms & Conditions */}
-          <li>
-            <Link
-              href="/admin/terms-and-condition"
-              className="flex items-center justify-between px-6 py-5 hover:bg-gray-50 transition group"
-            >
-              <span className="text-gray-700 font-medium text-base group-hover:text-blue-600 transition-colors">
-                Terms & Conditions
-              </span>
-              <ChevronRight className="text-gray-400 group-hover:text-blue-600 transition-colors w-5 h-5" />
-            </Link>
-          </li>
+              {/* Terms & Conditions */}
+              <li>
+                <Link
+                  href="/admin/terms-and-condition"
+                  className="flex items-center justify-between px-6 py-5 hover:bg-gray-50 transition group"
+                >
+                  <span className="text-gray-700 font-medium text-base group-hover:text-blue-600 transition-colors">
+                    Terms & Conditions
+                  </span>
+                  <ChevronRight className="text-gray-400 group-hover:text-blue-600 transition-colors w-5 h-5" />
+                </Link>
+              </li>
 
-          {/* About Us */}
-          <li>
-            <Link
-              href="/admin/about-us"
-              className="flex items-center justify-between px-6 py-5 hover:bg-gray-50 transition group"
-            >
-              <span className="text-gray-700 font-medium text-base group-hover:text-blue-600 transition-colors">About Us</span>
-              <ChevronRight className="text-gray-400 group-hover:text-blue-600 transition-colors w-5 h-5" />
-            </Link>
-          </li>
+              {/* About Us */}
+              <li>
+                <Link
+                  href="/admin/about-us"
+                  className="flex items-center justify-between px-6 py-5 hover:bg-gray-50 transition group"
+                >
+                  <span className="text-gray-700 font-medium text-base group-hover:text-blue-600 transition-colors">About Us</span>
+                  <ChevronRight className="text-gray-400 group-hover:text-blue-600 transition-colors w-5 h-5" />
+                </Link>
+              </li>
+            </>
+          )}
         </ul>
       </div>
     </div>
