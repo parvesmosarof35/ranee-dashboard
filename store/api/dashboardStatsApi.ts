@@ -23,6 +23,39 @@ export const dashboardStatsApi = baseApi.injectEndpoints({
       }),
       providesTags: ["dashboard"],
     }),
+    getConsultantTotalServices: build.query({
+      query: () => ({
+        url: "/dashboardstats/consultants_total_services",
+        method: "GET",
+      }),
+      providesTags: ["dashboard"],
+    }),
+    getConsultantTotalClients: build.query({
+      query: () => ({
+        url: "/dashboardstats/consultants_total_clients",
+        method: "GET",
+      }),
+      providesTags: ["dashboard"],
+    }),
+    getConsultantTotalEarnings: build.query({
+      query: () => ({
+        url: "/dashboardstats/consultants_total_earnings",
+        method: "GET",
+      }),
+      providesTags: ["dashboard"],
+    }),
+    getConsultantServedClients: build.query({
+      query: ({ page = 1, limit = 10 }: any = {}) => {
+        const params = new URLSearchParams();
+        if (page) params.append("page", page.toString());
+        if (limit) params.append("limit", limit.toString());
+        return {
+          url: `/dashboardstats/consultants_served_clients?${params.toString()}`,
+          method: "GET",
+        };
+      },
+      providesTags: ["dashboard"],
+    }),
   }),
 });
 
@@ -30,4 +63,8 @@ export const {
   useGetDashboardStatsQuery,
   useGetUserGrowthQuery,
   useGetRecentUsersQuery,
+  useGetConsultantTotalServicesQuery,
+  useGetConsultantTotalClientsQuery,
+  useGetConsultantTotalEarningsQuery,
+  useGetConsultantServedClientsQuery,
 } = dashboardStatsApi;
