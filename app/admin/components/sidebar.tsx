@@ -99,7 +99,13 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
             <h2 className="text-2xl font-bold bg-gradient-to-r from-[#F3AB0C] to-[#F96803] bg-clip-text text-transparent">
               Detroit Fit 313
             </h2>
-            <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-1">Admin Dashboard</p>
+            {
+              role === "consultant" ? (
+                <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-1">Consultant Dashboard</p>
+              ) : (
+                <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-1">Admin Dashboard</p>
+              )
+            }
           </div>
         </div>
         {/* Divider */}
