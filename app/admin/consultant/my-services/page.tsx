@@ -43,11 +43,12 @@ export default function ConsultantServicesPage() {
     };
 
     // Prepare API params based on filters
+    // Prepare API params based on filters
     const queryParams: any = { 
         page, 
         limit, 
         searchTerm,
-        instructor_id: user?._id // Filter by current consultant
+        instructor_id: user?.id // Filter by current consultant
     };
 
     if (filterCategory && filterCategory !== "All Categories") queryParams.category_id = filterCategory;
@@ -60,9 +61,7 @@ export default function ConsultantServicesPage() {
 
     // API Hooks
     // Skip fetching if user is not loaded yet to avoid unnecessary calls with undefined instructor_id
-    const { data: servicesData, isLoading: isLoadingServices } = useGetAllServicesQuery(queryParams, {
-        skip: !user?._id
-    });
+    const { data: servicesData, isLoading: isLoadingServices } = useGetAllServicesQuery(queryParams);
     const { data: categoriesData } = useGetAllCategoriesQuery({ limit: 100 });
 
     const services = servicesData?.data || [];
