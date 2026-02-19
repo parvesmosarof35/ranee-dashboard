@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
+import Link from "next/link";
 import {
     Table,
     TableBody,
@@ -63,7 +64,7 @@ export function BookingTable({
         <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                 <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-gray-800">My Bookings</h2>
+                    <h2 className="text-lg font-bold text-gray-800">My Slots</h2>
                     <Badge variant="secondary" className="bg-orange-50 text-orange-600 border-orange-100 px-3 py-1">
                         Total: {meta.total}
                     </Badge>
@@ -79,6 +80,7 @@ export function BookingTable({
                                 <TableHead>Meeting Type</TableHead>
                                 <TableHead>Payment</TableHead>
                                 <TableHead>Price</TableHead>
+                                <TableHead>Chat</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -124,10 +126,9 @@ export function BookingTable({
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant="outline" className={`font-normal ${
-                                                booking.meeting_type === 'Online' ? 'bg-blue-50 text-blue-600 border-blue-200' : 
+                                            <Badge variant="outline" className={`font-normal ${booking.meeting_type === 'Online' ? 'bg-blue-50 text-blue-600 border-blue-200' :
                                                 'bg-purple-50 text-purple-600 border-purple-200'
-                                            }`}>
+                                                }`}>
                                                 {booking.meeting_type}
                                             </Badge>
                                         </TableCell>
@@ -138,6 +139,17 @@ export function BookingTable({
                                         </TableCell>
                                         <TableCell className="font-bold text-gray-700">
                                             ${booking.service?.price}
+                                        </TableCell>
+                                        <TableCell>
+                                            {booking.conversation ? (
+                                                <Link href={`/admin/consultant/chat/${booking.conversation}?receiverId=${booking.user?._id}`}>
+                                                    <div className={`${buttonbg} text-white px-3 py-1.5 rounded-md text-sm font-medium hover:opacity-90 transition-opacity inline-block`}>
+                                                        Chat
+                                                    </div>
+                                                </Link>
+                                            ) : (
+                                                <span className="text-gray-400 text-xs">N/A</span>
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 ))

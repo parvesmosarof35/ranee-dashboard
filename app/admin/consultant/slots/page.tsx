@@ -35,8 +35,8 @@ export default function ConsultantSlotsPage() {
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className={`text-3xl font-bold ${textPrimary}`}>My Bookings</h1>
-                    <p className={`${textSecondarygray} mt-1`}>View and manage your upcoming and past bookings.</p>
+                    <h1 className={`text-3xl font-bold ${textPrimary}`}>My Upcoming Slots</h1>
+                    <p className={`${textSecondarygray} mt-1`}>View and manage your upcoming slots.</p>
                 </div>
             </div>
 
