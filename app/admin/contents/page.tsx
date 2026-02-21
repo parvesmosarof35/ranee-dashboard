@@ -1,39 +1,31 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import { Trash2, Edit, Eye, FileText } from "lucide-react";
-import { buttonbg, textPrimary } from "@/contexts/theme";
-
-// Mock Data
-const contents = [
-  { id: "01", title: "Why Travelers Love eSIMs", category: "Travel", author: "Admin", date: "2024-03-15", status: "Published" },
-  { id: "02", title: "Top 10 Destinations 2024", category: "Guides", author: "Admin", date: "2024-03-14", status: "Published" },
-  { id: "03", title: "How to Activate eSIM", category: "Tutorial", author: "Admin", date: "2024-03-10", status: "Draft" },
-  { id: "04", title: "Roaming Fees Explained", category: "Informative", author: "Admin", date: "2024-03-08", status: "Published" },
-];
+import { 
+  Save, Globe, Mail, MapPin, Phone, 
+  Facebook, Instagram, Twitter, Linkedin, Youtube, Music2, Send 
+} from "lucide-react";
+import { buttonbg, textPrimary, textSecondarygray } from "@/contexts/theme";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { 
+  useGetSocialMediaLinksQuery, 
+  useUpdateSocialMediaLinksMutation 
+} from "@/store/api/contactApi";
+import { toast } from "sonner";
 
 export default function ContentsPage() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
+
+  // Social Data
+  const { data: socialData, isLoading: isSocialLoading } = useGetSocialMediaLinksQuery({});
+  const [updateSocialLinks, { isLoading: isUpdating }] = useUpdateSocialMediaLinksMutation();
+  const [socialSettings, setSocialSettings] = useState<any>({});
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -43,83 +35,215 @@ export default function ContentsPage() {
     }
   }, [isAuthenticated, user, router]);
 
+  useEffect(() => {
+    if (socialData?.data) {
+      setSocialSettings(socialData.data);
+    }
+  }, [socialData]);
+
+  const handleSocialChange = (key: string, field: 'url' | 'isActive', value: any) => {
+    setSocialSettings((prev: any) => ({
+      ...prev,
+      [key]: {
+        ...(prev[key] || { url: '', isActive: false }),
+        [field]: value
+      }
+    }));
+  };
+
+  const handleSaveSettings = async () => {
+    try {
+      const { _id, createdAt, updatedAt, __v, ...dataToSave } = socialSettings;
+      await updateSocialLinks(dataToSave).unwrap();
+      toast.success("Settings updated successfully");
+    } catch (error: any) {
+      toast.error(error?.data?.message || "Failed to update settings");
+    }
+  };
+
   if (!user || (user.role !== "admin" && user.role !== "superAdmin")) return null;
 
   return (
-    <div className="min-h-screen bg-transparent space-y-5">
-
-      {/* Header */}
-      <div className={`${buttonbg} rounded-xl p-4 px-6 shadow-sm flex items-center justify-between`}>
-        <div className="flex items-center gap-2">
-          <FileText className="w-6 h-6 text-white" />
-          <h1 className="text-2xl font-bold text-white">Content Management</h1>
-        </div>
-        <Button className="bg-white text-[#2E6F65] hover:bg-white/90 font-bold">
-          + Add New Content
-        </Button>
-      </div>
-
-      {/* Content Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-h-[500px] flex flex-col justify-between p-5">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-white">
-              <TableRow className="">
-                <TableHead className={`font-semibold text-base py-5 ${textPrimary} pl-6`}>S.ID</TableHead>
-                <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Title</TableHead>
-                <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Category</TableHead>
-                <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Author</TableHead>
-                <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Date</TableHead>
-                <TableHead className={`font-semibold text-base py-5 ${textPrimary}`}>Status</TableHead>
-                <TableHead className={`font-semibold text-base py-5 ${textPrimary} text-right pr-6`}>Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {contents.map((item, i) => (
-                <TableRow key={i} className="hover:bg-gray-50 border-b border-gray-100 last:border-0">
-                  <TableCell className="font-medium text-gray-600 py-4 pl-6">{item.id}</TableCell>
-                  <TableCell className="text-gray-900 font-medium py-4">{item.title}</TableCell>
-                  <TableCell className="text-gray-600 py-4">{item.category}</TableCell>
-                  <TableCell className="text-gray-600 py-4">{item.author}</TableCell>
-                  <TableCell className="text-gray-600 py-4">{item.date}</TableCell>
-                  <TableCell className="py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                    ${item.status === 'Published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                      {item.status}
-                    </span>
-                  </TableCell>
-                  <TableCell className="py-4 pr-6">
-                    <div className="flex items-center justify-end gap-3">
-                      <button className="text-gray-500 hover:text-gray-700 transition-colors">
-                        <Eye className="w-5 h-5" />
-                      </button>
-                      <button className="text-gray-800 hover:text-black transition-colors">
-                        <Edit className="w-5 h-5" />
-                      </button>
-                      <button className="text-red-500 hover:text-red-600 transition-colors">
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Pagination */}
-        <div className="p-4 border-t border-gray-100">
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem><PaginationPrevious href="#" className="text-gray-500 hover:text-[#2E6F65]" /></PaginationItem>
-              <PaginationItem><PaginationLink href="#" isActive className="bg-[#2E6F65] text-white hover:bg-[#2E6F65]/90 hover:text-white border-0">1</PaginationLink></PaginationItem>
-              <PaginationItem><PaginationLink href="#" className="text-gray-600 hover:text-[#2E6F65] hover:bg-gray-100 border-0">2</PaginationLink></PaginationItem>
-              <PaginationItem><PaginationNext href="#" className="text-gray-500 hover:text-[#2E6F65]" /></PaginationItem>
-            </PaginationContent>
-          </Pagination>
+    <div className="w-full mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className={`text-3xl font-bold ${textPrimary}`}>Site Management</h1>
+          <p className={`${textSecondarygray} mt-1`}>Configure your business details and social media presence.</p>
         </div>
       </div>
 
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800">Business Presence</h2>
+            <p className="text-sm text-gray-500 mt-1">Configure your public contact details and social media links.</p>
+          </div>
+          <Button 
+            onClick={handleSaveSettings} 
+            className={`${buttonbg} flex items-center gap-2`}
+            disabled={isUpdating}
+          >
+            {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Save Changes
+          </Button>
+        </div>
+
+        {isSocialLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 text-emerald-600">
+            <Loader2 className="w-8 h-8 animate-spin" />
+            <p className="text-gray-500 font-medium">Loading settings...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+            
+            {/* Contact Basics */}
+            <div className="space-y-6">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 border-b pb-2">Business Details</h3>
+              
+              <SettingField 
+                label="App Name / Business Name" 
+                icon={<Globe className="w-4 h-4" />} 
+                value={socialSettings?.appName}
+                onChange={(f, v) => handleSocialChange('appName', f, v)}
+              />
+
+              <SettingField 
+                label="Email Address" 
+                icon={<Mail className="w-4 h-4" />} 
+                value={socialSettings?.email}
+                onChange={(f, v) => handleSocialChange('email', f, v)}
+              />
+
+              <SettingField 
+                label="Phone Number" 
+                icon={<Phone className="w-4 h-4" />} 
+                value={socialSettings?.phone}
+                onChange={(f, v) => handleSocialChange('phone', f, v)}
+              />
+
+              <SettingField 
+                label="Physical Address" 
+                icon={<MapPin className="w-4 h-4" />} 
+                value={socialSettings?.address}
+                onChange={(f, v) => handleSocialChange('address', f, v)}
+              />
+              
+              <SettingField 
+                label="Website URL" 
+                icon={<Globe className="w-4 h-4" />} 
+                value={socialSettings?.website}
+                onChange={(f, v) => handleSocialChange('website', f, v)}
+              />
+            </div>
+
+            {/* Social Links */}
+            <div className="space-y-6">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 border-b pb-2">Social Profiles</h3>
+              
+              <SettingField 
+                label="Facebook" 
+                icon={<Facebook className="w-4 h-4" />} 
+                value={socialSettings?.facebook}
+                onChange={(f, v) => handleSocialChange('facebook', f, v)}
+              />
+
+              <SettingField 
+                label="Instagram" 
+                icon={<Instagram className="w-4 h-4" />} 
+                value={socialSettings?.instagram}
+                onChange={(f, v) => handleSocialChange('instagram', f, v)}
+              />
+
+              <SettingField 
+                label="Twitter / X" 
+                icon={<Twitter className="w-4 h-4" />} 
+                value={socialSettings?.twitter}
+                onChange={(f, v) => handleSocialChange('twitter', f, v)}
+              />
+
+              <SettingField 
+                label="LinkedIn" 
+                icon={<Linkedin className="w-4 h-4" />} 
+                value={socialSettings?.linkedin}
+                onChange={(f, v) => handleSocialChange('linkedin', f, v)}
+              />
+
+              <SettingField 
+                label="YouTube" 
+                icon={<Youtube className="w-4 h-4" />} 
+                value={socialSettings?.youtube}
+                onChange={(f, v) => handleSocialChange('youtube', f, v)}
+              />
+
+              <SettingField 
+                label="TikTok" 
+                icon={<Music2 className="w-4 h-4" />} 
+                value={socialSettings?.tiktok}
+                onChange={(f, v) => handleSocialChange('tiktok', f, v)}
+              />
+
+              <SettingField 
+                label="WhatsApp" 
+                icon={<Send className="w-4 h-4" />} 
+                value={socialSettings?.whatsapp}
+                onChange={(f, v) => handleSocialChange('whatsapp', f, v)}
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+const SettingField = ({ label, icon, value, onChange }: { label: string, icon: React.ReactNode, value: any, onChange: (field: 'url' | 'isActive', val: any) => void }) => {
+  return (
+    <div className="space-y-2 p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400">{icon}</span>
+          <Label className="text-sm font-medium text-gray-700">{label}</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] font-bold uppercase ${value?.isActive ? 'text-green-500' : 'text-gray-300'}`}>
+            {value?.isActive ? 'Active' : 'Inactive'}
+          </span>
+          <Switch 
+            checked={value?.isActive || false} 
+            onCheckedChange={(checked) => onChange('isActive', checked)}
+          />
+        </div>
+      </div>
+      <Input 
+        value={value?.url || ''} 
+        onChange={(e) => onChange('url', e.target.value)}
+        placeholder={`Enter ${label.toLowerCase()}...`}
+        className="h-9 text-sm"
+      />
+    </div>
+  );
+};
+
+const Loader2 = ({ className }: { className?: string }) => (
+  <svg
+    className={`animate-spin ${className}`}
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+  >
+    <circle
+      className="opacity-25"
+      cx="12"
+      cy="12"
+      r="10"
+      stroke="currentColor"
+      strokeWidth="4"
+    ></circle>
+    <path
+      className="opacity-75"
+      fill="currentColor"
+      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+    ></path>
+  </svg>
+);

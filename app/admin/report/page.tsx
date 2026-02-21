@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import {
   Pagination,
   PaginationContent,
@@ -22,10 +23,12 @@ import { Eye, Trash2, X } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useRouter } from "next/navigation";
 import { textPrimary, buttonbg, textSecondarygray } from "@/contexts/theme";
-import { useGetAllContactQuery, useDeleteContactMutation } from "@/store/api/contactApi";
+import { 
+  useGetAllContactQuery, 
+  useDeleteContactMutation
+} from "@/store/api/contactApi";
 import { DebouncedInput } from "@/components/ui/debounced-input";
 import Swal from "sweetalert2";
-
 import { toast } from "sonner";
 
 // Contact Detail Modal
@@ -130,8 +133,7 @@ export default function ContactPage() {
 
   return (
     <div className="w-full mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-      {/* Header Section */}
+      
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className={`text-3xl font-bold ${textPrimary}`}>Contact Messages</h1>
@@ -150,7 +152,6 @@ export default function ContactPage() {
         </div>
       </div>
 
-      {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
@@ -197,20 +198,15 @@ export default function ContactPage() {
                     </TableCell>
                     <TableCell className="py-4 pr-6">
                       <div className="flex items-center justify-end gap-2">
-                        {/* View Action */}
                         <button
                           onClick={() => { setSelectedContact(item); setIsViewOpen(true); }}
                           className="text-blue-500 hover:text-blue-700 p-1.5 rounded-md hover:bg-blue-50 transition-colors"
-                          title="View details"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-
-                        {/* Delete Action */}
                         <button
                           onClick={() => handleDelete(item._id)}
                           className="text-red-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition-colors"
-                          title="Delete message"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -223,56 +219,50 @@ export default function ContactPage() {
           </Table>
         </div>
 
-        {/* Pagination */}
- 
-          <div className="py-4 border-t border-gray-100">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
+        <div className="py-4 border-t border-gray-100">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page > 1) setPage(page - 1);
+                  }}
+                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              {Array.from({ length: meta.totalPage }, (_, i) => i + 1).map((pageNum) => (
+                <PaginationItem key={pageNum}>
+                  <PaginationLink
                     href="#"
+                    isActive={page === pageNum}
                     onClick={(e) => {
                       e.preventDefault();
-                      if (page > 1) setPage(page - 1);
+                      setPage(pageNum);
                     }}
-                    className={page === 1 ? "pointer-events-none opacity-50" : ""}
-                  />
+                  >
+                    {pageNum}
+                  </PaginationLink>
                 </PaginationItem>
-
-                {Array.from({ length: meta.totalPage }, (_, i) => i + 1).map((pageNum) => (
-                  <PaginationItem key={pageNum}>
-                    <PaginationLink
-                      href="#"
-                      isActive={page === pageNum}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setPage(pageNum);
-                      }}
-                    >
-                      {pageNum}
-                    </PaginationLink>
-                  </PaginationItem>
-                ))}
-
-                <PaginationItem>
-                  <PaginationNext
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (page < meta.totalPage) setPage(page + 1);
-                    }}
-                    className={page === meta.totalPage ? "pointer-events-none opacity-50" : ""}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
-
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page < meta.totalPage) setPage(page + 1);
+                  }}
+                  className={page === meta.totalPage ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
       </div>
 
-      {/* Details Modal */}
       <ContactDetailModal isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} contact={selectedContact} />
-
-    </div >
+    </div>
   );
 }
+

@@ -39,7 +39,21 @@ const contactApi = baseApi.injectEndpoints({
       invalidatesTags: ["contact"],
     }),
 
+    // Get Social Media & Contact Info
+    getSocialMediaLinks: builder.query({
+      query: () => "settings/get_socal_media_links_address_phone_email",
+      providesTags: ["contact"],
+    }),
 
+    // Update Social Media & Contact Info
+    updateSocialMediaLinks: builder.mutation({
+      query: (data) => ({
+        url: "settings/socal_media_links_address_phone_email",
+        method: "POST",
+        body: data,
+      }),
+      invalidatesTags: ["contact"],
+    }),
   }),
 });
 
@@ -47,6 +61,8 @@ export const {
   useGetAllContactQuery,
   useCreateContactMutation,
   useDeleteContactMutation,
+  useGetSocialMediaLinksQuery,
+  useUpdateSocialMediaLinksMutation,
 } = contactApi;
 
 export default contactApi;
