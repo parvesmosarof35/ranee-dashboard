@@ -41,5 +41,6 @@ export const baseApi = createApi({
     "category",
     "service",
     "Booking",
+    "discount",
   ],
 });

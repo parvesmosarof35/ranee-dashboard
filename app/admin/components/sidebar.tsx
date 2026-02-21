@@ -55,6 +55,7 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
     { name: "Contact", path: "/admin/report", icon: BarChart },
     { name: "Create Admin", path: "/admin/create-admin", icon: ShieldCheck }, // only should be visible for superAdmin
     { name: "Consultant", path: "/admin/create-consultant", icon: ShieldCheck },
+    { name: "discount", path: "/admin/create-discount", icon: DollarSign },
     { name: "Settings", path: "/admin/settings", icon: Settings },
   ];
 
