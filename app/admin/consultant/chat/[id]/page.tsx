@@ -79,13 +79,15 @@ export default function ChatPage() {
             }
 
             if (page === 1) {
+                // If searching or page 1, we set the base messages
                 setMessages(newMessages);
                 setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 300);
             } else {
+                // Prepend for pagination
                 setMessages((prev) => [...newMessages, ...prev]);
             }
         }
-    }, [conversationData, page]);
+    }, [conversationData, page]); // Only update on data or page change
 
     // Handle Search
     useEffect(() => {
@@ -96,65 +98,117 @@ export default function ChatPage() {
     useEffect(() => {
         if (!user || !conversationId) return;
 
-        const socketUrl = process.env.NEXT_PUBLIC_IMG_URL || "https://smith-husband-mailman-retrieval.trycloudflare.com/";
-        const newSocket = io(socketUrl);
+        // Ensure URL is clean without trailing slash for the base
+        let socketUrl = process.env.NEXT_PUBLIC_IMG_URL || "https://helicopter-painted-those-viruses.trycloudflare.com";
+        if (socketUrl.endsWith("/")) socketUrl = socketUrl.slice(0, -1);
+        
+        console.log("📡 Attempting Socket Connect to:", socketUrl);
+        
+        const newSocket = io(socketUrl, {
+            // Cloudflare/Tunnels often work better if we start with polling 
+            // and then upgrade to websocket
+            transports: ["polling", "websocket"],
+            forceNew: true,
+            reconnectionAttempts: 5,
+            timeout: 10000,
+        });
 
         newSocket.on("connect", () => {
+            console.log("✅ Socket Connected! ID:", newSocket.id);
             setIsConnected(true);
-            const userId = user._id || user.id;
+            const userId = user._id || user.id || (user as any).uid;
+            
+            console.log("📤 Emitting join_conversation:", { conversationid: conversationId, myuserid: userId });
             newSocket.emit("join_conversation", {
                 conversationid: conversationId,
                 myuserid: userId
             });
         });
 
-        newSocket.on("disconnect", () => setIsConnected(false));
+        // 🔍 DEBUG: Catch ANY event the server sends
+        newSocket.onAny((event, ...args) => {
+            console.log(`📡 RAW EVENT [${event}]:`, args);
+        });
+
+        newSocket.on("join_confirmation", (data: any) => {
+            console.log("🎊 Room Join Confirmed:", data);
+        });
 
         newSocket.on("receive_message", (message: any) => {
+            console.log("📩 receive_message EVENT RECEIVED:", message);
             setMessages((prev) => {
-                const messageId = message._id || (message.createdAt + message.text);
-                if (prev.find(m => (m._id && m._id === message._id) || (m.createdAt === message.createdAt && m.text === message.text))) {
+                const exists = prev.some(m => 
+                    (m._id && message._id && m._id === message._id) || 
+                    (m.text === message.text && m.createdAt === message.createdAt)
+                );
+                if (exists) {
+                    console.log("🔄 Message already in state, skipping.");
                     return prev;
                 }
+                console.log("🆕 Adding new message to state");
                 return [...prev, message];
             });
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         });
 
+        newSocket.on("connect_error", (err) => {
+            console.error("❌ Socket Connection Error:", err.message);
+        });
+
+        newSocket.on("disconnect", (reason) => {
+            console.log("⚠️ Socket Disconnected:", reason);
+            setIsConnected(false);
+        });
+
         setSocket(newSocket);
-        return () => { newSocket.disconnect(); };
+        return () => {
+            console.log("🧹 Disconnecting socket...");
+            newSocket.disconnect();
+        };
     }, [conversationId, user]);
 
     const handleSendMessage = async () => {
         if ((!inputMessage.trim() && selectedImages.length === 0) || !conversationId) return;
 
+        const userId = user._id || user.id || (user as any).uid;
+        const convId = (Array.isArray(conversationId) ? conversationId[0] : conversationId) as string;
+
+        // ✅ Case 1: Text-only message -> Send via SOCKET only (Matching your HTML example)
+        if (selectedImages.length === 0 && socket && isConnected) {
+            const socketPayload = {
+                conversationId: convId,
+                senderId: userId,
+                text: inputMessage,
+            };
+            
+            console.log("📤 Emitting send_message via socket ONLY:", socketPayload);
+            socket.emit("send_message", socketPayload);
+            
+            // Clear input locally
+            setInputMessage("");
+            return; // 🛑 Don't call API for text-only messages
+        }
+
+        // ✅ Case 2: Message with images -> Use API (as sockets aren't ideal for files)
         const formData = new FormData();
         formData.append("data", JSON.stringify({ text: inputMessage }));
         selectedImages.forEach((image) => formData.append("images", image));
 
         try {
-            const response = await sendMessage({ id: conversationId, data: formData }).unwrap();
+            console.log("📤 Sending message with images via API...");
+            await sendMessage({ id: convId, data: formData }).unwrap();
             
-            // Immediately update UI if the response contains the message
-            if (response?.data) {
-                const newMessage = response.data;
-                setMessages((prev) => {
-                    const messageId = newMessage._id || (newMessage.createdAt + newMessage.text);
-                    if (prev.find(m => (m._id && m._id === newMessage._id) || (m.createdAt === newMessage.createdAt && m.text === newMessage.text))) {
-                        return prev;
-                    }
-                    return [...prev, newMessage];
-                });
-                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-            }
-            
+            // Clear inputs
             setInputMessage("");
             setSelectedImages([]);
+            
+            // Note: We rely on the socket broadcast (receive_message) to show the message in the UI.
         } catch (error) {
+            console.error("❌ Send error:", error);
             Swal.fire({
                 icon: "error",
                 title: "Failed to send message",
-                text: "Something went wrong while sending your message. Please try again.",
+                text: "Something went wrong. Please try again.",
                 confirmButtonColor: "#F96803"
             });
         }
