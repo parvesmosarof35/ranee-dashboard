@@ -3,11 +3,31 @@
 import { useState, useEffect } from "react";
 import Sidebar from "./components/sidebar";
 import MainHeader from "./components/main-header";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/auth-context";
+import { Loader2 } from "lucide-react";
+import { textPrimary } from "@/contexts/theme";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
   const pathname = usePathname();
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
+
+  // Authentication Guard
+  useEffect(() => {
+    // Small delay to allow redux-persist to rehydrate
+    const timer = setTimeout(() => {
+      if (!isAuthenticated) {
+        router.push("/auth");
+      } else {
+        setIsAuthChecking(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [isAuthenticated, router]);
 
   // Ensure: initially closed on mobile, open on desktop (lg: 1024px)
   useEffect(() => {
@@ -36,6 +56,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [pathname]);
 
+  if (isAuthChecking) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-white">
+        <div className="text-center">
+          <Loader2 className={`w-12 h-12 animate-spin ${textPrimary} mx-auto transition-all`} />
+          <p className="mt-4 text-gray-500 font-medium">Verifying sessions...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen relative overflow-hidden bg-white">
       {/* Mobile Overlay */}
@@ -50,7 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       
       <div className="flex flex-col w-full overflow-hidden my-5 h-[calc(100vh-2.5rem)]">
         <MainHeader toggleSidebar={toggleSidebar} />
-        <main className="p-5 bg-white flex-1 overflow-auto">
+        <main className="pt-5 px-5 bg-white flex-1 overflow-auto">
             {children}
         </main>
       </div>

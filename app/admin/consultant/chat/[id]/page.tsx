@@ -111,7 +111,13 @@ export default function ChatPage() {
         newSocket.on("disconnect", () => setIsConnected(false));
 
         newSocket.on("receive_message", (message: any) => {
-            setMessages((prev) => [...prev, message]);
+            setMessages((prev) => {
+                const messageId = message._id || (message.createdAt + message.text);
+                if (prev.find(m => (m._id && m._id === message._id) || (m.createdAt === message.createdAt && m.text === message.text))) {
+                    return prev;
+                }
+                return [...prev, message];
+            });
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         });
 
@@ -127,7 +133,21 @@ export default function ChatPage() {
         selectedImages.forEach((image) => formData.append("images", image));
 
         try {
-            await sendMessage({ id: conversationId, data: formData }).unwrap();
+            const response = await sendMessage({ id: conversationId, data: formData }).unwrap();
+            
+            // Immediately update UI if the response contains the message
+            if (response?.data) {
+                const newMessage = response.data;
+                setMessages((prev) => {
+                    const messageId = newMessage._id || (newMessage.createdAt + newMessage.text);
+                    if (prev.find(m => (m._id && m._id === newMessage._id) || (m.createdAt === newMessage.createdAt && m.text === newMessage.text))) {
+                        return prev;
+                    }
+                    return [...prev, newMessage];
+                });
+                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+            }
+            
             setInputMessage("");
             setSelectedImages([]);
         } catch (error) {
@@ -221,7 +241,7 @@ export default function ChatPage() {
             </div>
 
             {/* Messages Area - Flexible growing height */}
-            <div className="flex-1 overflow-y-auto px-4 py-6 space-y-8 scroll-smooth pb-32" id="scroll-area">
+            <div className="flex-1 overflow-y-auto px-4 py-6 space-y-8 scroll-smooth pb-10" id="scroll-area">
                 {hasMore && (
                     <div className="flex justify-center -mt-2">
                         <Button
@@ -302,7 +322,7 @@ export default function ChatPage() {
             </div>
 
             {/* Input Section - Fixed at bottom */}
-            <div className="bg-white border-t p-3 md:p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 shrink-0">
+            <div className="bg-white border-t p-2 md:p-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 shrink-0">
                 {selectedImages.length > 0 && (
                     <div className="flex gap-2 mb-3 bg-gray-50 p-2 rounded-xl overflow-x-auto border border-dashed border-gray-200">
                         {selectedImages.map((file, index) => (
@@ -322,13 +342,13 @@ export default function ChatPage() {
                         ))}
                     </div>
                 )}
-                <div className="flex gap-2 items-end max-w-6xl mx-auto">
-                    <div className="flex gap-1 mb-1">
+                <div className="flex gap-2 items-center max-w-6xl mx-auto">
+                    <div className="flex gap-1">
                         <Button 
                             type="button" 
                             variant="ghost" 
                             size="icon" 
-                            className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 h-10 w-10 rounded-full`}
+                            className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 h-9 w-9 my-auto rounded-full`}
                             onClick={() => fileInputRef.current?.click()}
                         >
                             <Paperclip className="w-5 h-5" />
@@ -359,7 +379,7 @@ export default function ChatPage() {
                         <Button
                             type="button"
                             size="icon"
-                            className={`absolute right-1.5 bottom-1.5 h-7 w-7 rounded-full shadow-lg ${buttonbg} text-white hover:scale-105 active:scale-95 transition-all`}
+                            className={`absolute right-1.5 bottom-1.5 h-7 w-7 mb-2 rounded-full shadow-lg ${buttonbg} text-white hover:scale-105 active:scale-95 transition-all`}
                             onClick={handleSendMessage}
                             disabled={(!inputMessage.trim() && selectedImages.length === 0) || isSending}
                         >

@@ -42,5 +42,6 @@ export const baseApi = createApi({
     "service",
     "Booking",
     "discount",
+    "Promotion",
   ],
 });
