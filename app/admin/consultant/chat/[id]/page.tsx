@@ -12,6 +12,8 @@ import { useGetConversationQuery, useSendMessageMutation } from "@/store/api/cha
 import Swal from "sweetalert2";
 import { format, isToday, isYesterday } from "date-fns";
 import { imgUrl, zegoConfig } from "@/store/config/envConfig";
+import { useLazyGetSingleUserQuery } from "@/store/api/userApi";
+import { Mail, Phone as PhoneIcon, User, Calendar, Shield } from "lucide-react";
 
 interface Message {
     _id?: string;
@@ -43,6 +45,7 @@ export default function ChatPage() {
     const [callType, setCallType] = useState<"video" | "voice" | null>(null);
 
     const [sendMessage, { isLoading: isSending }] = useSendMessageMutation();
+    const [getSingleUserInfo] = useLazyGetSingleUserQuery();
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -287,6 +290,94 @@ export default function ChatPage() {
         }
     };
 
+    const handleShowUserInfo = async () => {
+        const targetId = otherUser?._id || (otherUser as any).id || receiverIdParam;
+        if (!targetId) return;
+
+        try {
+            // Show loading
+            Swal.fire({
+                title: "Loading Profile...",
+                didOpen: () => {
+                    Swal.showLoading();
+                },
+                allowOutsideClick: false,
+                showConfirmButton: false,
+            });
+
+            const response = await getSingleUserInfo(targetId).unwrap();
+            const userData = response.data;
+
+            if (userData) {
+                Swal.fire({
+                    title: "User Profile",
+                    html: `
+                        <div class="flex flex-col items-center gap-4 py-4">
+                            <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-orange-100 shadow-sm">
+                                <img src="${userData.photo || 'https://ui-avatars.com/api/?name=' + userData.fullname}" class="w-full h-full object-cover">
+                            </div>
+                            <div class="text-center w-full space-y-3 px-4">
+                                <div class="flex items-center justify-center gap-2">
+                                    <span class="text-xl font-bold text-gray-800">${userData.fullname}</span>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${userData.role === 'consultant' ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'}">
+                                        ${userData.role}
+                                    </span>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 gap-3 text-left bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                    <div class="flex items-center gap-3 text-sm">
+                                        <div class="p-2 bg-white rounded-lg shadow-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                                        </div>
+                                        <div>
+                                            <p class="text-[10px] text-gray-400 font-bold uppercase leading-none mb-1">Email Address</p>
+                                            <p class="text-gray-700 font-medium">${userData.email}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex items-center gap-3 text-sm">
+                                        <div class="p-2 bg-white rounded-lg shadow-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                        </div>
+                                        <div>
+                                            <p class="text-[10px] text-gray-400 font-bold uppercase leading-none mb-1">Phone Number</p>
+                                            <p class="text-gray-700 font-medium">${userData.phoneNumber || 'Not provided'}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex items-center gap-3 text-sm">
+                                        <div class="p-2 bg-white rounded-lg shadow-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+                                        </div>
+                                        <div>
+                                            <p class="text-[10px] text-gray-400 font-bold uppercase leading-none mb-1">Member Since</p>
+                                            <p class="text-gray-700 font-medium">${new Date(userData.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `,
+                    showCloseButton: true,
+                    showConfirmButton: false,
+                    width: '400px',
+                    padding: '0',
+                    customClass: {
+                        container: 'user-profile-modal'
+                    }
+                });
+            }
+        } catch (error) {
+            console.error("❌ Error fetching user info:", error);
+            Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: "Could not retrieve user information.",
+                confirmButtonColor: "#F96803"
+            });
+        }
+    };
+
     const handleSendMessage = async () => {
         if ((!inputMessage.trim() && selectedImages.length === 0) || !conversationId) return;
 
@@ -405,7 +496,7 @@ export default function ChatPage() {
                     <Button
                         variant="ghost"
                         size="icon"
-                        className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 rounded-full hidden sm:flex`}
+                        className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 rounded-full flex`}
                         onClick={() => handleCall("voice")}
                     >
                         <Phone className="w-4 h-4" />
@@ -413,12 +504,17 @@ export default function ChatPage() {
                     <Button
                         variant="ghost"
                         size="icon"
-                        className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 rounded-full hidden sm:flex`}
+                        className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 rounded-full flex`}
                         onClick={() => handleCall("video")}
                     >
                         <Video className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 rounded-full`}>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 rounded-full`}
+                        onClick={handleShowUserInfo}
+                    >
                         <MoreVertical className="w-4 h-4" />
                     </Button>
                 </div>
