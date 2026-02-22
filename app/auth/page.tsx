@@ -183,11 +183,11 @@ function SignInPage() {
                     </svg>
                   )}
 
-                  <span className={`text-xl ${textPrimary}`}>
+                  <span className={`md:text-xl text-sm ${textPrimary}`}>
                     Remember Password
                   </span>
                 </label>
-                <Link href="/auth/forget-password" className={`${textPrimary} text-xl`}>
+                <Link href="/auth/forget-password" className={`${textPrimary} md:text-xl text-sm`}>
                   Forgot Password?
                 </Link>
               </div>
