@@ -49,7 +49,7 @@ export const getImageBaseUrl = () => imgUrl;
 
 // asdf 
 
-export const getImageUrl = (imagePath : any) => {
+export const getImageUrl = (imagePath: any) => {
   if (!imagePath) return "";
 
   // If it's already a full URL, return as-is
@@ -65,4 +65,10 @@ export const getImageUrl = (imagePath : any) => {
   // console.log("Image URL:", finalUrl);
 
   return finalUrl;
+};
+
+export const zegoConfig = {
+  appID: 1156940917,
+  appSign: "dafce05b909990264b3b617975709e95d99da4c35b17c347c416c76d28882717",
+  serverSecret: "b6258cd3c2ff3668612bece2601d24d6",
 };

@@ -86,7 +86,7 @@ const authApi = baseApi.injectEndpoints({
 
     getSingleUser: builder.query({
       query: (id) => ({
-        url: `/auth/get_single_user/${id}`,
+        url: `/user/get_single_user/${id}`,
         method: "GET",
       }),
       providesTags: ["User"],

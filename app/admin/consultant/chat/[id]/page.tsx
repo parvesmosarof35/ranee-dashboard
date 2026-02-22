@@ -11,7 +11,7 @@ import { Loader2, Send, Paperclip, X, Search as SearchIcon, MoreVertical, Phone,
 import { useGetConversationQuery, useSendMessageMutation } from "@/store/api/chatApi";
 import Swal from "sweetalert2";
 import { format, isToday, isYesterday } from "date-fns";
-import { imgUrl } from "@/store/config/envConfig";
+import { imgUrl, zegoConfig } from "@/store/config/envConfig";
 
 interface Message {
     _id?: string;
@@ -39,6 +39,9 @@ export default function ChatPage() {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
 
+    // Call State
+    const [callType, setCallType] = useState<"video" | "voice" | null>(null);
+
     const [sendMessage, { isLoading: isSending }] = useSendMessageMutation();
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -58,7 +61,7 @@ export default function ChatPage() {
     // User Map - Cache user details from messages for lookup
     const userMap = useMemo(() => {
         const map: Record<string, { _id: string; fullname?: string; photo?: string }> = {};
-        
+
         // Add current user to map
         if (user) {
             const uid = user._id || user.id;
@@ -70,17 +73,17 @@ export default function ChatPage() {
         // Extract info from messages that have objects
         messages.forEach(msg => {
             if (typeof msg.senderId === 'object' && msg.senderId?._id) {
-                map[msg.senderId._id] = { 
+                map[msg.senderId._id] = {
                     _id: msg.senderId._id,
-                    fullname: msg.senderId.fullname, 
-                    photo: msg.senderId.photo 
+                    fullname: msg.senderId.fullname,
+                    photo: msg.senderId.photo
                 };
             }
             if (typeof msg.receiverId === 'object' && msg.receiverId?._id) {
-                map[msg.receiverId._id] = { 
+                map[msg.receiverId._id] = {
                     _id: msg.receiverId._id,
-                    fullname: msg.receiverId.fullname, 
-                    photo: msg.receiverId.photo 
+                    fullname: msg.receiverId.fullname,
+                    photo: msg.receiverId.photo
                 };
             }
         });
@@ -90,12 +93,12 @@ export default function ChatPage() {
     // Receiver Info - Derived from messages if available
     const otherUser = useMemo(() => {
         const userId = user?._id || user?.id;
-        
+
         // Search all messages for the other user's info
         for (const msg of messages) {
             const s = msg.senderId;
             const r = msg.receiverId;
-            
+
             if (typeof s === 'object' && s._id !== userId) return s;
             if (typeof r === 'object' && r._id !== userId) return r;
         }
@@ -139,11 +142,11 @@ export default function ChatPage() {
         if (!user || !conversationId) return;
 
         // Ensure URL is clean without trailing slash for the base
-        let socketUrl = imgUrl ;
+        let socketUrl = imgUrl;
         if (socketUrl.endsWith("/")) socketUrl = socketUrl.slice(0, -1);
-        
+
         console.log("📡 Attempting Socket Connect to:", socketUrl);
-        
+
         const newSocket = io(socketUrl, {
             // Cloudflare/Tunnels often work better if we start with polling 
             // and then upgrade to websocket
@@ -157,7 +160,7 @@ export default function ChatPage() {
             console.log("✅ Socket Connected! ID:", newSocket.id);
             setIsConnected(true);
             const userId = user._id || user.id || (user as any).uid;
-            
+
             console.log("📤 Emitting join_conversation:", { conversationid: conversationId, myuserid: userId });
             newSocket.emit("join_conversation", {
                 conversationid: conversationId,
@@ -177,8 +180,8 @@ export default function ChatPage() {
         newSocket.on("receive_message", (message: any) => {
             console.log("📩 receive_message EVENT RECEIVED:", message);
             setMessages((prev) => {
-                const exists = prev.some(m => 
-                    (m._id && message._id && m._id === message._id) || 
+                const exists = prev.some(m =>
+                    (m._id && message._id && m._id === message._id) ||
                     (m.text === message.text && m.createdAt === message.createdAt)
                 );
                 if (exists) {
@@ -207,6 +210,83 @@ export default function ChatPage() {
         };
     }, [conversationId, user]);
 
+    const handleCall = async (type: "video" | "voice") => {
+        if (!user || !otherUser || !conversationId) {
+            Swal.fire({
+                icon: "error",
+                title: "Call Failed",
+                text: "User information not available.",
+                confirmButtonColor: "#F96803"
+            });
+            return;
+        }
+
+        try {
+            const { getZpInstance, initZegoInvitation } = await import("@/lib/zegoManager");
+            const { ZegoUIKitPrebuilt } = await import("@zegocloud/zego-uikit-prebuilt");
+
+            let zp = getZpInstance();
+            if (!zp) {
+                console.log("⏳ Zego Instance not ready, initializing now...");
+                zp = await initZegoInvitation(user);
+            }
+
+            if (!zp) {
+                throw new Error("Could not initialize Zego Service");
+            }
+
+            const targetId = otherUser._id || (otherUser as any).id;
+            const targetName = otherUser.fullname || "User_" + targetId.slice(-4);
+
+            console.log("📞 Sending Call Invitation to:", { targetId, targetName });
+
+            // @ts-ignore
+            zp.sendCallInvitation({
+                callees: [{ userID: targetId, userName: targetName }],
+                callType: type === "video" ? ZegoUIKitPrebuilt.InvitationTypeVideoCall : ZegoUIKitPrebuilt.InvitationTypeVoiceCall,
+                timeout: 60,
+            }).then((res: any) => {
+                console.log("✅ Call Invitation Sent:", res);
+                if (res.errorInvitees && res.errorInvitees.length > 0) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "User Offline",
+                        text: "The user might be offline or not reachable.",
+                        confirmButtonColor: "#F96803"
+                    });
+                }
+            }).catch((err: any) => {
+                console.error("❌ Call Invitation Error:", err);
+                const errorData = typeof err === 'string' ? JSON.parse(err) : err;
+                if (errorData.code === 6000121) {
+                    Swal.fire({
+                        icon: "error",
+                        title: "Connection Error",
+                        text: "Zego service is still connecting. Please try again in a few seconds.",
+                        confirmButtonColor: "#F96803"
+                    });
+                }
+            });
+
+            if (socket && isConnected) {
+                const userId = user._id || user.id;
+                socket.emit("send_message", {
+                    conversationId: (Array.isArray(conversationId) ? conversationId[0] : (conversationId as string)),
+                    senderId: userId,
+                    text: type === "video" ? "🎥 Started a video call..." : "📞 Started a voice call...",
+                });
+            }
+        } catch (error: any) {
+            console.error("Call Invitation Init Error:", error);
+            Swal.fire({
+                icon: "error",
+                title: "Call Failed",
+                text: "Internal error during call initialization.",
+                confirmButtonColor: "#F96803"
+            });
+        }
+    };
+
     const handleSendMessage = async () => {
         if ((!inputMessage.trim() && selectedImages.length === 0) || !conversationId) return;
 
@@ -220,10 +300,10 @@ export default function ChatPage() {
                 senderId: userId,
                 text: inputMessage,
             };
-            
+
             console.log("📤 Emitting send_message via socket ONLY:", socketPayload);
             socket.emit("send_message", socketPayload);
-            
+
             // Clear input locally
             setInputMessage("");
             return; // 🛑 Don't call API for text-only messages
@@ -237,11 +317,11 @@ export default function ChatPage() {
         try {
             console.log("📤 Sending message with images via API...");
             await sendMessage({ id: convId, data: formData }).unwrap();
-            
+
             // Clear inputs
             setInputMessage("");
             setSelectedImages([]);
-            
+
             // Note: We rely on the socket broadcast (receive_message) to show the message in the UI.
         } catch (error) {
             console.error("❌ Send error:", error);
@@ -322,10 +402,20 @@ export default function ChatPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 rounded-full hidden sm:flex`}>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 rounded-full hidden sm:flex`}
+                        onClick={() => handleCall("voice")}
+                    >
                         <Phone className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 rounded-full hidden sm:flex`}>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 rounded-full hidden sm:flex`}
+                        onClick={() => handleCall("video")}
+                    >
                         <Video className="w-4 h-4" />
                     </Button>
                     <Button variant="ghost" size="icon" className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 rounded-full`}>
@@ -373,7 +463,7 @@ export default function ChatPage() {
                             const isMe = currentSenderId === userId;
                             const senderDetails = typeof msg.senderId === 'object' ? msg.senderId : userMap[currentSenderId as string];
                             const showAvatar = !isMe;
-                            
+
                             return (
                                 <div
                                     key={msg._id || idx}
@@ -439,10 +529,10 @@ export default function ChatPage() {
                 )}
                 <div className="flex gap-2 items-center max-w-6xl mx-auto">
                     <div className="flex gap-1">
-                        <Button 
-                            type="button" 
-                            variant="ghost" 
-                            size="icon" 
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
                             className={`${textSecondarygray} hover:${textPrimary} hover:bg-orange-50 h-9 w-9 my-auto rounded-full`}
                             onClick={() => fileInputRef.current?.click()}
                         >

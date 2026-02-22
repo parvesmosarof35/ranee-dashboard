@@ -7,13 +7,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2 } from "lucide-react";
 import { textPrimary } from "@/contexts/theme";
+import { initZegoInvitation } from "@/lib/zegoManager";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   // Authentication Guard
   useEffect(() => {
@@ -29,16 +30,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => clearTimeout(timer);
   }, [isAuthenticated, router]);
 
+  // ZegoCloud Call Invitation Initialization
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      initZegoInvitation(user);
+    }
+  }, [isAuthenticated, user]);
+
   // Ensure: initially closed on mobile, open on desktop (lg: 1024px)
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
     const mql = window.matchMedia("(min-width: 1024px)");
-    
+
     // Initial State
     setIsSidebarOpen(mql.matches);
 
     const updateOpenState = (e: MediaQueryListEvent) => {
-        setIsSidebarOpen(e.matches);
+      setIsSidebarOpen(e.matches);
     };
 
     mql.addEventListener("change", updateOpenState);
@@ -76,13 +84,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           className="fixed inset-0 bg-black/30 backdrop-blur-[1px] z-40 lg:hidden"
         />
       )}
-      
+
       <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
-      
+
       <div className="flex flex-col w-full overflow-hidden my-5 h-[calc(100vh-2.5rem)]">
         <MainHeader toggleSidebar={toggleSidebar} />
         <main className="pt-5 px-5 bg-white flex-1 overflow-auto">
-            {children}
+          {children}
         </main>
       </div>
     </div>

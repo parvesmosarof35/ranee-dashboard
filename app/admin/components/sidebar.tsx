@@ -55,7 +55,7 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
     // { name: "Analytics", path: "/admin/analytics", icon: BarChart },
     { name: "Contact", path: "/admin/report", icon: BarChart },
     { name: "Create Admin", path: "/admin/create-admin", icon: ShieldCheck, onlysuperadmin: true }, // only should be visible for superAdmin
-    { name: "Consultant", path: "/admin/create-consultant", icon: ShieldCheck},
+    { name: "Consultant", path: "/admin/create-consultant", icon: ShieldCheck },
     { name: "discount", path: "/admin/create-discount", icon: DollarSign, onlysuperadmin: true },
     { name: "Settings", path: "/admin/settings", icon: Settings },
   ];
@@ -72,7 +72,13 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
 
   // Determine which nav items to use based on role
   const role = user?.role?.toLowerCase();
-  const currentNavItems = role === "consultant" ? navItemsConsultant : navItems;
+  const currentNavItems = (role === "consultant" ? navItemsConsultant : navItems).filter(item => {
+    // @ts-ignore - onlysuperadmin property exists on some items
+    if (item.onlysuperadmin && role !== "superadmin") {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div
