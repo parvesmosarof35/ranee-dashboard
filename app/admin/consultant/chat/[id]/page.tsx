@@ -11,6 +11,7 @@ import { Loader2, Send, Paperclip, X, Search as SearchIcon, MoreVertical, Phone,
 import { useGetConversationQuery, useSendMessageMutation } from "@/store/api/chatApi";
 import Swal from "sweetalert2";
 import { format, isToday, isYesterday } from "date-fns";
+import { imgUrl } from "@/store/config/envConfig";
 
 interface Message {
     _id?: string;
@@ -54,19 +55,58 @@ export default function ChatPage() {
         refetchOnMountOrArgChange: true
     });
 
+    // User Map - Cache user details from messages for lookup
+    const userMap = useMemo(() => {
+        const map: Record<string, { _id: string; fullname?: string; photo?: string }> = {};
+        
+        // Add current user to map
+        if (user) {
+            const uid = user._id || user.id;
+            if (uid) {
+                map[uid] = { _id: uid, fullname: user.fullname, photo: user.photo };
+            }
+        }
+
+        // Extract info from messages that have objects
+        messages.forEach(msg => {
+            if (typeof msg.senderId === 'object' && msg.senderId?._id) {
+                map[msg.senderId._id] = { 
+                    _id: msg.senderId._id,
+                    fullname: msg.senderId.fullname, 
+                    photo: msg.senderId.photo 
+                };
+            }
+            if (typeof msg.receiverId === 'object' && msg.receiverId?._id) {
+                map[msg.receiverId._id] = { 
+                    _id: msg.receiverId._id,
+                    fullname: msg.receiverId.fullname, 
+                    photo: msg.receiverId.photo 
+                };
+            }
+        });
+        return map;
+    }, [messages, user]);
+
     // Receiver Info - Derived from messages if available
     const otherUser = useMemo(() => {
-        if (!messages.length) return null;
-        const firstMsg = messages[0];
         const userId = user?._id || user?.id;
         
-        const sender = typeof firstMsg.senderId === 'object' ? firstMsg.senderId : null;
-        const receiver = typeof firstMsg.receiverId === 'object' ? firstMsg.receiverId : null;
+        // Search all messages for the other user's info
+        for (const msg of messages) {
+            const s = msg.senderId;
+            const r = msg.receiverId;
+            
+            if (typeof s === 'object' && s._id !== userId) return s;
+            if (typeof r === 'object' && r._id !== userId) return r;
+        }
 
-        if (sender && sender._id !== userId) return sender;
-        if (receiver && receiver._id !== userId) return receiver;
+        // Fallback: If we have their ID in receiverIdParam, try to find them in map
+        if (receiverIdParam && userMap[receiverIdParam]) {
+            return userMap[receiverIdParam];
+        }
+
         return null;
-    }, [messages, user]);
+    }, [messages, user, receiverIdParam, userMap]);
 
     // Handle data update
     useEffect(() => {
@@ -99,7 +139,7 @@ export default function ChatPage() {
         if (!user || !conversationId) return;
 
         // Ensure URL is clean without trailing slash for the base
-        let socketUrl = process.env.NEXT_PUBLIC_IMG_URL || "https://helicopter-painted-those-viruses.trycloudflare.com";
+        let socketUrl = imgUrl ;
         if (socketUrl.endsWith("/")) socketUrl = socketUrl.slice(0, -1);
         
         console.log("📡 Attempting Socket Connect to:", socketUrl);
@@ -329,8 +369,9 @@ export default function ChatPage() {
                         </div>
                         {dateMsgs.map((msg, idx) => {
                             const userId = user?._id || user?.id;
-                            const isMe = (typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId) === userId;
-                            const sender = typeof msg.senderId === 'object' ? msg.senderId : null;
+                            const currentSenderId = typeof msg.senderId === 'object' ? msg.senderId._id : msg.senderId;
+                            const isMe = currentSenderId === userId;
+                            const senderDetails = typeof msg.senderId === 'object' ? msg.senderId : userMap[currentSenderId as string];
                             const showAvatar = !isMe;
                             
                             return (
@@ -340,10 +381,10 @@ export default function ChatPage() {
                                 >
                                     {showAvatar && (
                                         <div className={`w-8 h-8 rounded-full bg-orange-50 border ${borderPrimary} shrink-0 flex items-center justify-center overflow-hidden mb-1`}>
-                                            {sender?.photo ? (
-                                                <img src={sender.photo} alt="" className="w-full h-full object-cover" />
+                                            {senderDetails?.photo ? (
+                                                <img src={senderDetails.photo} alt="" className="w-full h-full object-cover" />
                                             ) : (
-                                                <span className={`text-xs font-bold ${textPrimary}`}>{sender?.fullname?.charAt(0) || "U"}</span>
+                                                <span className={`text-xs font-bold ${textPrimary}`}>{senderDetails?.fullname?.charAt(0) || "U"}</span>
                                             )}
                                         </div>
                                     )}
