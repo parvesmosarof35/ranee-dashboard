@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Send, Paperclip, X, Search as SearchIcon, MoreVertical, Phone, Video, ChevronLeft } from "lucide-react";
 import { useGetConversationQuery, useSendMessageMutation } from "@/store/api/chatApi";
 import Swal from "sweetalert2";
-import { format, isToday, isYesterday } from "date-fns";
+import { format, isToday, isYesterday, formatDistanceToNow } from "date-fns";
 import { imgUrl, zegoConfig } from "@/store/config/envConfig";
 import { useLazyGetSingleUserQuery } from "@/store/api/userApi";
 import { Mail, Phone as PhoneIcon, User, Calendar, Shield } from "lucide-react";
@@ -40,6 +40,9 @@ export default function ChatPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
+    const [isPartnerTyping, setIsPartnerTyping] = useState(false);
+    const [partnerStatus, setPartnerStatus] = useState<{ isOnline: boolean; lastSeen?: string | null } | null>(null);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Call State
     const [callType, setCallType] = useState<"video" | "voice" | null>(null);
@@ -164,6 +167,11 @@ export default function ChatPage() {
             setIsConnected(true);
             const userId = user._id || user.id || (user as any).uid;
 
+            // 1. Join personal room for status/notifications
+            console.log("📤 Emitting join_user:", { userId });
+            newSocket.emit("join_user", { userId });
+
+            // 2. Join specific conversation
             console.log("📤 Emitting join_conversation:", { conversationid: conversationId, myuserid: userId });
             newSocket.emit("join_conversation", {
                 conversationid: conversationId,
@@ -176,12 +184,55 @@ export default function ChatPage() {
             console.log(`📡 RAW EVENT [${event}]:`, args);
         });
 
+        newSocket.on("user_status", (data: { userId: string, isOnline: boolean, lastSeen: string | null }) => {
+            console.log("👤 user_status EVENT:", data);
+            const partnerId = otherUser?._id || (otherUser as any)?._id || receiverIdParam;
+            if (data.userId === partnerId) {
+                setPartnerStatus({ isOnline: data.isOnline, lastSeen: data.lastSeen });
+            }
+        });
+
+        newSocket.on("typing", ({ conversationId: msgConvId, userId }: { conversationId: string, userId: string }) => {
+            const myUserId = user?._id || user?.id;
+            const currentConvId = Array.isArray(conversationId) ? conversationId[0] : conversationId;
+            if (userId !== myUserId && msgConvId === currentConvId) {
+                setIsPartnerTyping(true);
+            }
+        });
+
+        newSocket.on("stop_typing", ({ conversationId: msgConvId, userId }: { conversationId: string, userId: string }) => {
+            const currentConvId = Array.isArray(conversationId) ? conversationId[0] : conversationId;
+            if (msgConvId === currentConvId) {
+                setIsPartnerTyping(false);
+            }
+        });
+
+        newSocket.on("messages_seen", ({ conversationId: msgConvId, seenBy }: { conversationId: string, seenBy: string }) => {
+            console.log("👀 Messages seen in:", msgConvId, "by:", seenBy);
+            // Optionally update UI for read receipts here
+        });
+
+        newSocket.on("new_message", ({ conversationId: msgConvId, message }: any) => {
+            console.log("🔔 new_message notification:", message);
+            // If it's the current conversation, it's already handled by receive_message usually
+        });
+
         newSocket.on("join_confirmation", (data: any) => {
             console.log("🎊 Room Join Confirmed:", data);
         });
 
         newSocket.on("receive_message", (message: any) => {
             console.log("📩 receive_message EVENT RECEIVED:", message);
+            
+            // Play notification sound if message is from partner
+            const myUserId = user?._id || user?.id;
+            const senderId = typeof message.senderId === 'object' ? message.senderId._id : message.senderId;
+            
+            if (senderId !== myUserId) {
+                const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
+                audio.play().catch(e => console.log("🔇 Audio play blocked by browser:", e));
+            }
+
             setMessages((prev) => {
                 const exists = prev.some(m =>
                     (m._id && message._id && m._id === message._id) ||
@@ -210,8 +261,31 @@ export default function ChatPage() {
         return () => {
             console.log("🧹 Disconnecting socket...");
             newSocket.disconnect();
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         };
-    }, [conversationId, user]);
+    }, [conversationId, user, otherUser, receiverIdParam]);
+
+    // Handle Mark as Seen
+    useEffect(() => {
+        if (socket && isConnected && conversationId && user) {
+            const userId = user._id || user.id;
+            socket.emit("mark_as_seen", {
+                conversationId: Array.isArray(conversationId) ? conversationId[0] : conversationId,
+                userId: userId
+            });
+        }
+    }, [conversationId, messages, socket, isConnected, user]);
+
+    // Initialize partner status from otherUser data if available
+    useEffect(() => {
+        if (otherUser) {
+            const isOnline = (otherUser as any).isOnline;
+            const lastSeen = (otherUser as any).lastSeen;
+            if (isOnline !== undefined) {
+                setPartnerStatus({ isOnline, lastSeen });
+            }
+        }
+    }, [otherUser]);
 
     const handleCall = async (type: "video" | "voice") => {
         if (!user || !otherUser || !conversationId) {
@@ -226,6 +300,7 @@ export default function ChatPage() {
 
         try {
             const { getZpInstance, initZegoInvitation } = await import("@/lib/zegoManager");
+            // @ts-ignore
             const { ZegoUIKitPrebuilt } = await import("@zegocloud/zego-uikit-prebuilt");
 
             let zp = getZpInstance();
@@ -397,6 +472,14 @@ export default function ChatPage() {
 
             // Clear input locally
             setInputMessage("");
+            
+            // Stop typing
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            socket.emit("stop_typing", { 
+                conversationId: convId, 
+                userId: userId 
+            });
+            
             return; // 🛑 Don't call API for text-only messages
         }
 
@@ -485,11 +568,22 @@ export default function ChatPage() {
                         <h2 className="text-sm md:text-base font-bold text-gray-900 leading-tight truncate max-w-[120px] md:max-w-none">
                             {otherUser?.fullname || "Our Consultant"}
                         </h2>
-                        <p className="text-[10px] text-gray-500 font-medium flex items-center gap-1">
-                            {isConnected ? (
-                                <><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> Connected</>
-                            ) : "Offline"}
-                        </p>
+                        <div className="flex flex-col">
+                            <p className="text-[10px] text-gray-500 font-medium flex items-center gap-1">
+                                {partnerStatus?.isOnline ? (
+                                    <><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> Online</>
+                                ) : partnerStatus?.lastSeen ? (
+                                    <>Last seen: {formatDistanceToNow(new Date(partnerStatus.lastSeen), { addSuffix: true })}</>
+                                ) : isConnected ? (
+                                    <><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> Connected</>
+                                ) : "Offline"}
+                            </p>
+                            {isPartnerTyping && (
+                                <p className="text-[9px] text-orange-500 font-bold animate-pulse">
+                                    typing...
+                                </p>
+                            )}
+                        </div>
                     </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -646,7 +740,22 @@ export default function ChatPage() {
                     <div className="flex-1 relative">
                         <textarea
                             value={inputMessage}
-                            onChange={(e) => setInputMessage(e.target.value)}
+                            onChange={(e) => {
+                                setInputMessage(e.target.value);
+                                
+                                // Handle typing indicator
+                                if (socket && isConnected && conversationId && user) {
+                                    const userId = user._id || user.id;
+                                    const convId = Array.isArray(conversationId) ? conversationId[0] : conversationId;
+                                    
+                                    socket.emit("typing", { conversationId: convId, userId });
+                                    
+                                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                    typingTimeoutRef.current = setTimeout(() => {
+                                        socket.emit("stop_typing", { conversationId: convId, userId });
+                                    }, 2000);
+                                }
+                            }}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
