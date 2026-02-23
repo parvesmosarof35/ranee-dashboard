@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft, Loader2, Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { io } from "socket.io-client";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,230 +17,258 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Card } from "@/components/ui/card";
-import { buttonbg, textPrimary } from "@/contexts/theme";
-
-interface NotificationItem {
-  _id: string;
-  title: string;
-  message?: string;
-  isRead: boolean;
-  createdAt: string;
-}
-
-// Mock Data Generator
-const generateMockNotifications = (count: number): NotificationItem[] => {
-  return Array.from({ length: count }).map((_, i) => ({
-    _id: `notif-${i}`,
-    title: `Notification Title ${i + 1}`,
-    message: `This is a sample notification message for item ${i + 1}.`,
-    isRead: i > 2, // First 3 are unread
-    createdAt: new Date(Date.now() - i * 3600000).toISOString(), // spaced by hours
-  }));
-};
-
-const MOCK_DATA = generateMockNotifications(25);
+import { buttonbg, textPrimary, borderPrimary } from "@/contexts/theme";
+import { useAuthState } from "@/store/hooks";
+import { getBaseUrl, imgUrl } from "@/store/config/envConfig";
+import { useNotifications, NotificationItem } from "@/hooks/useNotifications";
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const [currentPage, setCurrentPage] = useState(1);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMarkingRead, setIsMarkingRead] = useState(false);
+  const { user, token } = useAuthState();
+  const { notifications, unreadCount, isLoading, markAsRead, markAllAsRead } = useNotifications(user?._id || user?.id, token);
   
-  const pageSize = 10;
-  const totalPages = Math.ceil(MOCK_DATA.length / pageSize);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  
+  const pageSize = 15;
+  const totalPages = Math.ceil(notifications.length / pageSize);
+  const paginatedNotifications = notifications.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  // Simulate Fetching Data
-  useEffect(() => {
-    setIsLoading(true);
-    setTimeout(() => {
-      const start = (currentPage - 1) * pageSize;
-      const end = start + pageSize;
-      setNotifications(MOCK_DATA.slice(start, end));
-      setIsLoading(false);
-    }, 800);
-  }, [currentPage]);
-
-  const formatTimeAgo = (createdAt: string) => {
-    const date = new Date(createdAt);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+  const getNotificationIcon = (type?: string) => {
+    switch (type?.toLowerCase()) {
+      case 'system':
+        return <div className="p-2 bg-blue-50 text-blue-600 rounded-xl"><Bell className="w-5 h-5" /></div>;
+      case 'alert':
+      case 'warning':
+        return <div className="p-2 bg-amber-50 text-amber-600 rounded-xl"><Bell className="w-5 h-5" /></div>;
+      case 'offer':
+      case 'promo':
+        return <div className="p-2 bg-purple-50 text-purple-600 rounded-xl"><Bell className="w-5 h-5" /></div>;
+      default:
+        return <div className="p-2 bg-orange-50 text-[#F3AB0C] rounded-xl"><Bell className="w-5 h-5" /></div>;
+    }
   };
 
-  const handleMarkAsRead = async (id: string) => {
+  const formatTimeAgo = (createdAt: string) => {
     try {
-      setIsMarkingRead(true);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const date = new Date(createdAt);
+      if (isNaN(date.getTime())) return 'Recently';
       
-      setNotifications(prev => 
-        prev.map(n => n._id === id ? { ...n, isRead: true } : n)
-      );
-    } catch (error) {
-      toast.error("Failed to update notification status");
-    } finally {
-        setIsMarkingRead(false);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+      
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch (e) {
+      return 'Recently';
     }
+  };
+
+  // Group notifications by date
+  const groupedNotifications = paginatedNotifications.reduce((groups: { [key: string]: NotificationItem[] }, note) => {
+    const date = new Date(note.createdAt);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    let groupKey = "Older";
+    if (date.toDateString() === today.toDateString()) {
+      groupKey = "Today";
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      groupKey = "Yesterday";
+    } else {
+      groupKey = date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    }
+
+    if (!groups[groupKey]) groups[groupKey] = [];
+    groups[groupKey].push(note);
+    return groups;
+  }, {});
+
+  const handleMarkAsRead = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsActionLoading(true);
+    await markAsRead(id);
+    setIsActionLoading(false);
   };
   
   const handleMarkAllRead = async () => {
     const unreadNotifications = notifications.filter(n => !n.isRead);
-    
     if (unreadNotifications.length === 0) {
       toast.info("All notifications are already marked as read");
       return;
     }
-    
-    try {
-      setIsMarkingRead(true);
-       // Simulate API call
-       await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setNotifications(prev => 
-        prev.map(n => ({ ...n, isRead: true }))
-      );
-      
-      toast.success("All notifications marked as read");
-      
-    } catch (error) {
-      toast.error("Failed to mark all notifications as read");
-    } finally {
-        setIsMarkingRead(false);
-    }
+    setIsActionLoading(true);
+    await markAllAsRead();
+    setIsActionLoading(false);
   };
 
   return (
-    <div className="p-5 min-h-screen">
-      {/* Header Section */}
-      <div className={`${buttonbg} px-4 md:px-5 py-3 rounded-md mb-3 flex flex-wrap md:flex-nowrap items-start md:items-center gap-2 md:gap-3`}>
-        <button
-          onClick={() => router.back()}
-          className="text-white hover:opacity-90 transition"
-          aria-label="Go back"
-        >
-          <ChevronLeft className="w-6 h-6" />
-        </button>
-        <h1 className="text-white text-xl sm:text-2xl font-bold">Notifications</h1>
-        <div className="ml-0 md:ml-auto w-full md:w-auto flex items-center justify-between md:justify-end gap-2 mt-2 md:mt-0">
-          <span className="text-white text-sm">
-            {notifications.filter(n => !n.isRead).length} unread
-          </span>
+    <div className="p-4 md:p-8 min-h-screen bg-[#F9FAFB]">
+      <div className="max-w-4xl mx-auto">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.back()}
+              className="p-2 hover:bg-white rounded-full transition-all border border-transparent hover:border-gray-200 shadow-sm md:shadow-none"
+              aria-label="Go back"
+            >
+              <ChevronLeft className="w-6 h-6 text-gray-600" />
+            </button>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-[#111827] tracking-tight">Notifications</h1>
+              <p className="text-gray-500 text-sm mt-1">
+                You have <span className={`font-bold ${textPrimary}`}>{unreadCount}</span> unread alerts
+              </p>
+            </div>
+          </div>
+          
           <Button 
             onClick={handleMarkAllRead}
             size="sm"
-            variant="secondary"
-            className="text-[#2E6F65] bg-white hover:bg-white/90 cursor-pointer"
-            disabled={isLoading || isMarkingRead}
+            variant="outline"
+            className={`w-full md:w-auto ${textPrimary} ${borderPrimary} hover:bg-[#F3AB0C] hover:text-white transition-all font-semibold rounded-xl px-6`}
+            disabled={isLoading || isActionLoading || unreadCount === 0}
           >
-            Mark all read
+            Mark all as read
           </Button>
         </div>
-      </div>
 
-      {/* Page Loading */}
-      {isLoading ? (
-        <div className="flex justify-center items-center py-10">
-          <Loader2 className={`w-10 h-10 animate-spin ${textPrimary}`} />
-        </div>
-      ) : (
-        <>
-            <div className="space-y-3">
-                {notifications.map((item) => (
-                    <Card
-                      key={item._id}
-                      onClick={() => !item.isRead && handleMarkAsRead(item._id)}
-                      className={`group flex items-start justify-between gap-4 p-4 border border-gray-200 bg-white rounded-lg transition hover:shadow-sm cursor-pointer ${
-                        item.isRead ? "opacity-90 grayscale-[0.5] bg-gray-50" : ""
-                      }`}
-                    >
-                      {/* Unread Accent Bar */}
-                      <div className={`w-1 rounded-full self-stretch ${item.isRead ? "bg-transparent" : "bg-[#2E6F65]"}`} />
-
-                      {/* Content */}
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-base md:text-lg font-semibold text-[#2E6F65]">{item.title}</h4>
-                          <span className="text-xs md:text-sm bg-gray-100 text-gray-600 px-2 py-1 rounded-full shrink-0">
-                            {formatTimeAgo(item.createdAt)}
-                          </span>
-                        </div>
-                        {item.message && (
-                          <p className="text-gray-600 text-sm mt-1 pr-2">{item.message}</p>
-                        )}
-                        {!item.isRead && (
-                          <p className="text-[12px] text-[#2E6F65] mt-1 font-bold">New</p>
-                        )}
-                      </div>
-
-                      {/* Actions (show on hover or if unread) */}
-                      <div 
-                        className="flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition" 
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {!item.isRead && (
-                          <Button 
-                            size="sm" 
-                            className="bg-[#2E6F65] hover:bg-[#2E6F65]/90"
-                            onClick={() => handleMarkAsRead(item._id)}
-                            disabled={isMarkingRead}
-                          >
-                            Mark read
-                          </Button>
-                        )}
-                      </div>
-                    </Card>
-                ))}
-              {notifications.length === 0 && (
-                <div className="text-center text-gray-500 py-10">No notifications</div>
-              )}
-            </div>
-          
-          {/* Pagination */}
-          <div className="flex justify-center mt-6">
-            <Pagination>
-                <PaginationContent>
-                    <PaginationItem>
-                        <PaginationPrevious 
-                            href="#" 
-                            onClick={(e) => { e.preventDefault(); if(currentPage > 1) setCurrentPage(c => c - 1); }}
-                            className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-                        />
-                    </PaginationItem>
-                    
-                    {Array.from({length: totalPages}).map((_, i) => (
-                        <PaginationItem key={i}>
-                            <PaginationLink 
-                                href="#" 
-                                isActive={currentPage === i + 1}
-                                onClick={(e) => { e.preventDefault(); setCurrentPage(i + 1); }}
-                            >
-                                {i + 1}
-                            </PaginationLink>
-                        </PaginationItem>
-                    ))}
-
-                    <PaginationItem>
-                        <PaginationNext 
-                            href="#" 
-                            onClick={(e) => { e.preventDefault(); if(currentPage < totalPages) setCurrentPage(c => c + 1); }} 
-                            className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-                        />
-                    </PaginationItem>
-                </PaginationContent>
-            </Pagination>
+        {/* Page Content */}
+        {isLoading ? (
+          <div className="flex flex-col justify-center items-center py-20 bg-white rounded-3xl border border-gray-100 shadow-sm">
+            <Loader2 className={`w-12 h-12 animate-spin text-[#F3AB0C] mb-4`} />
+            <p className="text-gray-500 font-medium animate-pulse">Fetching your alerts...</p>
           </div>
-          
-        </>
-      )}
+        ) : (
+          <div className="space-y-8">
+            {notifications.length > 0 ? (
+              <>
+                {Object.entries(groupedNotifications).map(([group, items]) => (
+                  <div key={group} className="space-y-4">
+                    <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest px-2">{group}</h2>
+                    <div className="grid gap-3">
+                      {items.map((item) => (
+                        <div
+                          key={item._id}
+                          onClick={() => !item.isRead && markAsRead(item._id)}
+                          className={`group relative flex items-start gap-4 p-4 rounded-2xl transition-all duration-300 cursor-pointer border shadow-sm hover:shadow-md ${
+                            item.isRead 
+                              ? "bg-white/60 border-gray-100 opacity-80" 
+                              : "bg-white border-orange-100 ring-1 ring-orange-50"
+                          }`}
+                        >
+                          {/* Unread Indicator Dot */}
+                          {!item.isRead && (
+                            <div className="absolute top-4 right-4 w-2.5 h-2.5 bg-[#F3AB0C] rounded-full ring-4 ring-orange-50" />
+                          )}
+
+                          {/* Icon */}
+                          <div className="shrink-0 mt-1">
+                            {getNotificationIcon(item.type)}
+                          </div>
+
+                          {/* Text Content */}
+                          <div className="flex-1 min-w-0 pr-6">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <h4 className={`text-base font-bold truncate ${item.isRead ? "text-gray-700" : "text-[#111827]"}`}>
+                                {item.title}
+                              </h4>
+                            </div>
+                            {item.message && (
+                              <p className={`text-sm leading-relaxed line-clamp-2 ${item.isRead ? "text-gray-500" : "text-gray-600"}`}>
+                                {item.message}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-3 mt-2">
+                              <span className="text-[11px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                                <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                                {formatTimeAgo(item.createdAt)}
+                              </span>
+                              {!item.isRead && (
+                                <button 
+                                  onClick={(e) => handleMarkAsRead(item._id, e)}
+                                  className={`text-[11px] font-bold ${textPrimary} hover:underline uppercase tracking-tight`}
+                                >
+                                  Mark read
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex justify-center pt-8">
+                    <Pagination>
+                        <PaginationContent className="bg-white p-1 rounded-2xl border border-gray-100 shadow-sm">
+                            <PaginationItem>
+                                <PaginationPrevious 
+                                    href="#" 
+                                    onClick={(e) => { e.preventDefault(); if(currentPage > 1) setCurrentPage(c => c - 1); }}
+                                    className={`rounded-xl ${currentPage === 1 ? "pointer-events-none opacity-50" : "hover:bg-gray-50"}`}
+                                />
+                            </PaginationItem>
+                            
+                            {Array.from({length: totalPages}).map((_, i) => (
+                                <PaginationItem key={i}>
+                                    <PaginationLink 
+                                        href="#" 
+                                        isActive={currentPage === i + 1}
+                                        onClick={(e) => { e.preventDefault(); setCurrentPage(i + 1); }}
+                                        className={`rounded-xl w-10 h-10 ${currentPage === i + 1 ? "bg-[#F3AB0C] text-white hover:bg-[#F3AB0C] hover:text-white" : "hover:bg-gray-50 text-gray-600"}`}
+                                    >
+                                        {i + 1}
+                                    </PaginationLink>
+                                </PaginationItem>
+                            ))}
+
+                            <PaginationItem>
+                                <PaginationNext 
+                                    href="#" 
+                                    onClick={(e) => { e.preventDefault(); if(currentPage < totalPages) setCurrentPage(c => c + 1); }} 
+                                    className={`rounded-xl ${currentPage === totalPages ? "pointer-events-none opacity-50" : "hover:bg-gray-50"}`}
+                                />
+                            </PaginationItem>
+                        </PaginationContent>
+                    </Pagination>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[32px] border border-dashed border-gray-200 shadow-sm">
+                <div className="bg-orange-50 p-8 rounded-[32px] mb-6 relative">
+                  <Bell className="w-16 h-16 text-[#F3AB0C]" strokeWidth={1.5} />
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#F3AB0C] rounded-full border-4 border-white animate-bounce" />
+                </div>
+                <h3 className="text-2xl font-extrabold text-[#111827] mb-2 tracking-tight">All caught up!</h3>
+                <p className="text-gray-500 max-w-[280px] text-center font-medium leading-relaxed">
+                  When you receive new updates, alerts or system messages, they'll appear here.
+                </p>
+                <Button 
+                  onClick={() => router.back()}
+                  variant="link" 
+                  className={`mt-6 ${textPrimary} font-bold`}
+                >
+                  Return to Dashboard
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+

@@ -7,6 +7,8 @@ import Image from "next/image";
 import { textPrimary, borderPrimary, sidebarbg } from "@/contexts/theme";
 import { useGetMyProfileQuery } from "@/store/api/authApi";
 import { getImageUrl } from "@/store/config/envConfig";
+import { useNotifications } from "@/hooks/useNotifications";
+import { useAuthState } from "@/store/hooks";
 
 interface MainHeaderProps {
   toggleSidebar: () => void;
@@ -15,15 +17,14 @@ interface MainHeaderProps {
 export default function MainHeader({ toggleSidebar }: MainHeaderProps) {
   const router = useRouter();
   const { data: profileData } = useGetMyProfileQuery({});
-  const { user: authUser } = useAuth();
+  const { user: authUser, token } = useAuthState();
   const user = profileData?.data || authUser;
 
-  // Dummy unread count
-  const unreadCount = 3;
+  const { unreadCount } = useNotifications(user?._id || user?.id, token);
 
   return (
     <div className="relative w-full px-5">
-      <header className={`${sidebarbg} shadow-sm rounded-lg border border-[#E5E7EB] overflow-hidden`}>
+      <header className={`${sidebarbg} shadow-sm rounded-lg border ${borderPrimary} overflow-hidden`}>
         <div className="flex justify-between items-center px-5 md:px-10 h-[80px]">
           <button
             onClick={toggleSidebar}
@@ -38,11 +39,13 @@ export default function MainHeader({ toggleSidebar }: MainHeaderProps) {
               type="button"
               aria-label="Notifications"
               onClick={() => router.push('/admin/notifications')}
-              className={`relative p-2 rounded-full border ${borderPrimary} hover:bg-white/60 transition cursor-pointer`}
+              className={`relative p-2.5 rounded-2xl border ${borderPrimary} bg-white hover:bg-gray-50 transition-all shadow-sm hover:shadow-md cursor-pointer group`}
             >
-              <Bell className={`w-6 h-6 font-thin ${textPrimary}`} />
+              <Bell className={`w-6 h-6 ${textPrimary} transition-transform group-hover:rotate-12`} />
               {unreadCount > 0 && (
-                <span className="absolute top-2 right-2 inline-flex h-2 w-2 rounded-full bg-[#E53E3E]"></span>
+                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#E53E3E] text-[10px] font-bold text-white ring-2 ring-white animate-in zoom-in">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
               )}
             </button>
 
