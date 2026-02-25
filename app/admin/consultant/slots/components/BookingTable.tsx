@@ -95,19 +95,16 @@ export function BookingTable({
                                     <TableRow key={booking._id} className="hover:bg-gray-50/50 border-b-gray-100 transition-colors">
                                         <TableCell>
                                             <div className="flex items-center gap-3">
-                                                {booking.user?.images && booking.user.images[0] ? (
-                                                    <img src={booking.user.images[0]} alt={booking.user_details?.name || "User"} className="w-10 h-10 rounded-full object-cover bg-gray-100" />
+                                                {booking.user?.photo ? (
+                                                    <img src={booking.user.photo} alt={booking.user?.fullname || "User"} className="w-10 h-10 rounded-full object-cover bg-gray-100" />
                                                 ) : (
                                                     <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 font-bold">
-                                                        {(booking.user_details?.name || "U").charAt(0).toUpperCase()}
+                                                        {(booking.user?.fullname || "U").charAt(0).toUpperCase()}
                                                     </div>
                                                 )}
                                                 <div>
-                                                    <p className="font-bold text-gray-800 text-sm">{booking.user_details?.name || "Unknown User"}</p>
-                                                    <p className="text-xs text-gray-500">{booking.user_details?.email}</p>
-                                                    {booking.user_details?.phone && (
-                                                        <p className="text-xs text-gray-400">{booking.user_details.phone}</p>
-                                                    )}
+                                                    <p className="font-bold text-gray-800 text-sm">{booking.user?.fullname || "Unknown User"}</p>
+                                                    {booking.user?.email && <p className="text-xs text-gray-500">{booking.user.email}</p>}
                                                 </div>
                                             </div>
                                         </TableCell>
@@ -142,7 +139,7 @@ export function BookingTable({
                                         </TableCell>
                                         <TableCell>
                                             {booking.conversation ? (
-                                                <Link href={`/admin/consultant/chat/${booking.conversation}?receiverId=${booking.user?._id}`}>
+                                                <Link href={`/admin/consultant/chat/${booking.conversation._id}?receiverId=${booking.user?._id}`}>
                                                     <div className={`${buttonbg} text-white px-3 py-1.5 rounded-md text-sm font-medium hover:opacity-90 transition-opacity inline-block`}>
                                                         Chat
                                                     </div>

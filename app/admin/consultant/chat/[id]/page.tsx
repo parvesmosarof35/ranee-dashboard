@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { io, Socket } from "socket.io-client";
 import { useAuth } from "@/contexts/auth-context";
 import { buttonbg, textPrimary, textSecondarygray, activeTabBG, borderPrimary } from "@/contexts/theme";
 import { Input } from "@/components/ui/input";
@@ -14,15 +13,9 @@ import { format, isToday, isYesterday, formatDistanceToNow } from "date-fns";
 import { imgUrl, zegoConfig } from "@/store/config/envConfig";
 import { useLazyGetSingleUserQuery } from "@/store/api/userApi";
 import { Mail, Phone as PhoneIcon, User, Calendar, Shield } from "lucide-react";
+import { useSocket } from "@/hooks/useSocket";
+import { Message, UserStatusPayload, TypingPayload } from "@/types/chat";
 
-interface Message {
-    _id?: string;
-    senderId: string | { _id: string; fullname?: string; email?: string; photo?: string };
-    receiverId?: string | { _id: string; fullname?: string; email?: string; photo?: string };
-    text: string;
-    createdAt?: string;
-    images?: string[];
-}
 
 export default function ChatPage() {
     const { id: conversationId } = useParams();
@@ -31,11 +24,22 @@ export default function ChatPage() {
     const { user } = useAuth();
     const router = useRouter();
 
+    // Socket Hook
+    const {
+        connect,
+        joinUser,
+        joinConversation,
+        sendMessage: emitSocketMessage,
+        emitTyping,
+        emitStopTyping,
+        markAsSeen,
+        useSocketListener,
+        isConnected
+    } = useSocket();
+
     // State
-    const [socket, setSocket] = useState<Socket | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputMessage, setInputMessage] = useState("");
-    const [isConnected, setIsConnected] = useState(false);
     const [selectedImages, setSelectedImages] = useState<File[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [page, setPage] = useState(1);
@@ -63,6 +67,67 @@ export default function ChatPage() {
         skip: !conversationId,
         refetchOnMountOrArgChange: true
     });
+
+    // --- Socket Setup & Listeners ---
+
+    useEffect(() => {
+        connect();
+    }, [connect]);
+
+    useEffect(() => {
+        if (!user || !conversationId || !isConnected) return;
+        const userId = user._id || user.id;
+        joinUser(userId);
+        joinConversation(conversationId as string, userId);
+    }, [conversationId, user, isConnected, joinUser, joinConversation]);
+
+    // Handle incoming messages
+    useSocketListener("receive_message", (message: Message) => {
+        console.log("📩 receive_message EVENT RECEIVED:", message);
+
+        const myUserId = user?._id || user?.id;
+        const senderId = typeof message.senderId === 'object' ? message.senderId._id : message.senderId;
+
+        if (senderId !== myUserId) {
+            const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
+            audio.play().catch(e => console.log("🔇 Audio play blocked:", e));
+        }
+
+        setMessages((prev) => {
+            const exists = prev.some(m =>
+                (m._id && message._id && m._id === message._id) ||
+                (m.text === message.text && m.createdAt === message.createdAt)
+            );
+            return exists ? prev : [...prev, message];
+        });
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    });
+
+    // Handle user status
+    useSocketListener("user_status", (data: UserStatusPayload) => {
+        const partnerId = otherUser?._id || (otherUser as any)?._id || receiverIdParam;
+        if (data.userId === partnerId) {
+            setPartnerStatus({ isOnline: data.isOnline, lastSeen: data.lastSeen });
+        }
+    });
+
+    // Handle typing
+    useSocketListener("typing", (data: TypingPayload) => {
+        const myUserId = user?._id || user?.id;
+        const currentConvId = Array.isArray(conversationId) ? conversationId[0] : conversationId;
+        if (data.userId !== myUserId && data.conversationId === currentConvId) {
+            setIsPartnerTyping(true);
+        }
+    });
+
+    useSocketListener("stop_typing", (data: TypingPayload) => {
+        const currentConvId = Array.isArray(conversationId) ? conversationId[0] : conversationId;
+        if (data.conversationId === currentConvId) {
+            setIsPartnerTyping(false);
+        }
+    });
+
+    // --- Derived State ---
 
     // User Map - Cache user details from messages for lookup
     const userMap = useMemo(() => {
@@ -117,7 +182,7 @@ export default function ChatPage() {
         return null;
     }, [messages, user, receiverIdParam, userMap]);
 
-    // Handle data update
+    // Update messages when history loads
     useEffect(() => {
         if (conversationData?.data) {
             const newMessages = [...conversationData.data].reverse();
@@ -128,153 +193,26 @@ export default function ChatPage() {
             }
 
             if (page === 1) {
-                // If searching or page 1, we set the base messages
                 setMessages(newMessages);
                 setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 300);
             } else {
-                // Prepend for pagination
                 setMessages((prev) => [...newMessages, ...prev]);
             }
         }
-    }, [conversationData, page]); // Only update on data or page change
+    }, [conversationData, page]);
 
     // Handle Search
     useEffect(() => {
         setPage(1);
     }, [searchTerm]);
 
-    // Socket Connection
-    useEffect(() => {
-        if (!user || !conversationId) return;
-
-        // Ensure URL is clean without trailing slash for the base
-        let socketUrl = imgUrl;
-        if (socketUrl.endsWith("/")) socketUrl = socketUrl.slice(0, -1);
-
-        console.log("📡 Attempting Socket Connect to:", socketUrl);
-
-        const newSocket = io(socketUrl, {
-            // Cloudflare/Tunnels often work better if we start with polling 
-            // and then upgrade to websocket
-            transports: ["polling", "websocket"],
-            forceNew: true,
-            reconnectionAttempts: 5,
-            timeout: 10000,
-        });
-
-        newSocket.on("connect", () => {
-            console.log("✅ Socket Connected! ID:", newSocket.id);
-            setIsConnected(true);
-            const userId = user._id || user.id || (user as any).uid;
-
-            // 1. Join personal room for status/notifications
-            console.log("📤 Emitting join_user:", { userId });
-            newSocket.emit("join_user", { userId });
-
-            // 2. Join specific conversation
-            console.log("📤 Emitting join_conversation:", { conversationid: conversationId, myuserid: userId });
-            newSocket.emit("join_conversation", {
-                conversationid: conversationId,
-                myuserid: userId
-            });
-        });
-
-        // 🔍 DEBUG: Catch ANY event the server sends
-        newSocket.onAny((event, ...args) => {
-            console.log(`📡 RAW EVENT [${event}]:`, args);
-        });
-
-        newSocket.on("user_status", (data: { userId: string, isOnline: boolean, lastSeen: string | null }) => {
-            console.log("👤 user_status EVENT:", data);
-            const partnerId = otherUser?._id || (otherUser as any)?._id || receiverIdParam;
-            if (data.userId === partnerId) {
-                setPartnerStatus({ isOnline: data.isOnline, lastSeen: data.lastSeen });
-            }
-        });
-
-        newSocket.on("typing", ({ conversationId: msgConvId, userId }: { conversationId: string, userId: string }) => {
-            const myUserId = user?._id || user?.id;
-            const currentConvId = Array.isArray(conversationId) ? conversationId[0] : conversationId;
-            if (userId !== myUserId && msgConvId === currentConvId) {
-                setIsPartnerTyping(true);
-            }
-        });
-
-        newSocket.on("stop_typing", ({ conversationId: msgConvId, userId }: { conversationId: string, userId: string }) => {
-            const currentConvId = Array.isArray(conversationId) ? conversationId[0] : conversationId;
-            if (msgConvId === currentConvId) {
-                setIsPartnerTyping(false);
-            }
-        });
-
-        newSocket.on("messages_seen", ({ conversationId: msgConvId, seenBy }: { conversationId: string, seenBy: string }) => {
-            console.log("👀 Messages seen in:", msgConvId, "by:", seenBy);
-            // Optionally update UI for read receipts here
-        });
-
-        newSocket.on("new_message", ({ conversationId: msgConvId, message }: any) => {
-            console.log("🔔 new_message notification:", message);
-            // If it's the current conversation, it's already handled by receive_message usually
-        });
-
-        newSocket.on("join_confirmation", (data: any) => {
-            console.log("🎊 Room Join Confirmed:", data);
-        });
-
-        newSocket.on("receive_message", (message: any) => {
-            console.log("📩 receive_message EVENT RECEIVED:", message);
-            
-            // Play notification sound if message is from partner
-            const myUserId = user?._id || user?.id;
-            const senderId = typeof message.senderId === 'object' ? message.senderId._id : message.senderId;
-            
-            if (senderId !== myUserId) {
-                const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
-                audio.play().catch(e => console.log("🔇 Audio play blocked by browser:", e));
-            }
-
-            setMessages((prev) => {
-                const exists = prev.some(m =>
-                    (m._id && message._id && m._id === message._id) ||
-                    (m.text === message.text && m.createdAt === message.createdAt)
-                );
-                if (exists) {
-                    console.log("🔄 Message already in state, skipping.");
-                    return prev;
-                }
-                console.log("🆕 Adding new message to state");
-                return [...prev, message];
-            });
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-        });
-
-        newSocket.on("connect_error", (err) => {
-            console.error("❌ Socket Connection Error:", err.message);
-        });
-
-        newSocket.on("disconnect", (reason) => {
-            console.log("⚠️ Socket Disconnected:", reason);
-            setIsConnected(false);
-        });
-
-        setSocket(newSocket);
-        return () => {
-            console.log("🧹 Disconnecting socket...");
-            newSocket.disconnect();
-            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        };
-    }, [conversationId, user, otherUser, receiverIdParam]);
-
     // Handle Mark as Seen
     useEffect(() => {
-        if (socket && isConnected && conversationId && user) {
+        if (isConnected && conversationId && user) {
             const userId = user._id || user.id;
-            socket.emit("mark_as_seen", {
-                conversationId: Array.isArray(conversationId) ? conversationId[0] : conversationId,
-                userId: userId
-            });
+            markAsSeen(conversationId as string, userId);
         }
-    }, [conversationId, messages, socket, isConnected, user]);
+    }, [conversationId, messages, isConnected, user, markAsSeen]);
 
     // Initialize partner status from otherUser data if available
     useEffect(() => {
@@ -346,9 +284,9 @@ export default function ChatPage() {
                 }
             });
 
-            if (socket && isConnected) {
+            if (isConnected) {
                 const userId = user._id || user.id;
-                socket.emit("send_message", {
+                emitSocketMessage({
                     conversationId: (Array.isArray(conversationId) ? conversationId[0] : (conversationId as string)),
                     senderId: userId,
                     text: type === "video" ? "🎥 Started a video call..." : "📞 Started a voice call...",
@@ -460,7 +398,7 @@ export default function ChatPage() {
         const convId = (Array.isArray(conversationId) ? conversationId[0] : conversationId) as string;
 
         // ✅ Case 1: Text-only message -> Send via SOCKET only (Matching your HTML example)
-        if (selectedImages.length === 0 && socket && isConnected) {
+        if (selectedImages.length === 0 && isConnected) {
             const socketPayload = {
                 conversationId: convId,
                 senderId: userId,
@@ -468,18 +406,15 @@ export default function ChatPage() {
             };
 
             console.log("📤 Emitting send_message via socket ONLY:", socketPayload);
-            socket.emit("send_message", socketPayload);
+            emitSocketMessage(socketPayload);
 
             // Clear input locally
             setInputMessage("");
-            
+
             // Stop typing
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-            socket.emit("stop_typing", { 
-                conversationId: convId, 
-                userId: userId 
-            });
-            
+            emitStopTyping(convId, userId);
+
             return; // 🛑 Don't call API for text-only messages
         }
 
@@ -742,17 +677,17 @@ export default function ChatPage() {
                             value={inputMessage}
                             onChange={(e) => {
                                 setInputMessage(e.target.value);
-                                
+
                                 // Handle typing indicator
-                                if (socket && isConnected && conversationId && user) {
+                                if (isConnected && conversationId && user) {
                                     const userId = user._id || user.id;
                                     const convId = Array.isArray(conversationId) ? conversationId[0] : conversationId;
-                                    
-                                    socket.emit("typing", { conversationId: convId, userId });
-                                    
+
+                                    emitTyping(convId as string, userId);
+
                                     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
                                     typingTimeoutRef.current = setTimeout(() => {
-                                        socket.emit("stop_typing", { conversationId: convId, userId });
+                                        emitStopTyping(convId as string, userId);
                                     }, 2000);
                                 }
                             }}
